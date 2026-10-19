@@ -19,6 +19,7 @@
 | JSON, Markdown and HTML reports | `reporting/` |
 | Deterministic reference policy and public-data validation | `shared/benchmark_policy.py` |
 | Numeric tolerance, comparisons and candidate swapping | `shared/comparison.py` |
+| Provider selection and credentials | `shared/config.py` |
 | File persistence and hashes | `shared/io.py` |
 
 The same AG2 factory configures all four roles. Each receives the same public evidence, shared rubric and calculator access. Role instructions and schemas define their responsibilities. `BENCHMARK_PROMPT_VERSION`, `SCHEMA_VERSION`, `POLICY_VERSION` and `AGGREGATION_VERSION` identify different experiment components; they do not select competing policies.
@@ -38,8 +39,14 @@ The runner loads private references for experiment identity and scoring, but the
 
 - Keep RQ1/RQ2 scope: fixed aggregation without discussion rounds or explanation manipulation.
 - Paid requests belong in `ai_agents/agents.py`. Planning, data preparation, aggregation and saved-result reporting make no API calls.
-- New runs require explicit paid acknowledgement and a request cap. Resume rejects changed code, settings or inputs; use a new run ID after a refactor.
+- OpenAI runs require explicit paid acknowledgement. Both OpenAI and local Ollama runs require a request cap. Resume rejects changed code, settings or inputs; use a new run ID after a refactor.
 - Internal fixtures stay in `tests/`. The user-facing run command always uses real judges.
 - Historical datasets and experiment outputs are preserved. Reports retain read-only support for historical snapshots; old pilot prompts, schemas and aggregation are no longer executable.
 
 `data/benchmark-v2/` is the active 400-test/120-development package. Historical pilot files also supply recipe IDs to exclude during generation. A new human-review sample must come from benchmark-v2; review is scheduled after inference, blind to model judgments.
+
+## Local Ollama execution
+
+`shared/config.py` resolves `IS_LOCAL_LLM` and `LOCAL_LLM_MODEL` once before a run. Local mode uses AG2's existing OpenAI-compatible client at the fixed loopback endpoint `http://127.0.0.1:11434/v1`, with a placeholder key; it never reads or sends the OpenAI key. No native Ollama Python adapter or extra package is needed. A blank model is an error and failed local requests cannot fall back to OpenAI.
+
+All four roles share the same provider/model, rubric, structured output schema and calculator. Local requests use `max_tokens` and temperature 0, omitting OpenAI-specific reasoning/store fields. Provider, model and effective settings enter the saved configuration and resume fingerprint. Local inference is a real model run (`mode=live`); only internal synthetic fixtures use `mode=offline`. Reports record tokens/latency and do not apply cloud pricing to local runs.

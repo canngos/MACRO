@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
-from macro.shared.config import openai_api_key
+from macro.shared.config import openai_api_key, provider_config
 from macro.ai_agents.agents import LiveProvider
 from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate, comparisons, guard_single
 from macro.reporting.summary import summarize
@@ -37,7 +37,7 @@ class CallRecorder:
 
     def begin(self, tag, role, messages):
         if len(list(self.folder.glob("*.json"))) >= self.max_calls:
-            raise BudgetExceeded("Maximum paid call count reached; resume with a larger explicit --max-calls if desired")
+            raise BudgetExceeded("Maximum request count reached; resume with a larger explicit --max-calls if desired")
         call_id = uuid.uuid4().hex
         write_json(self.folder / (call_id + ".json"), {"call_id": call_id, "tag": tag, "role": role,
             "status": "in_flight", "messages": messages, "started_utc": datetime.now(timezone.utc).isoformat()})
@@ -64,12 +64,15 @@ def experiment_plan(folder, limit, config):
     return {"cases": count, "dataset": dataset, "orders": 2, "single_initial_calls": count * 2,
             "specialist_initial_calls": count * 6, "total_initial_calls": initial,
             "maximum_with_all_retries_and_tool_rounds": initial * config["max_attempts"] * (config["max_tool_rounds"] + 1),
-            "model": config["model"], "note": "Plan only; no model initialized or API called."}
+            "model": config["model"], "provider": config.get("provider", "openai"),
+            "base_url": config.get("base_url"), "note": "Plan only; no model initialized or API called."}
 
 
 def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
-    openai_api_key()
+    config = config if "provider" in config else provider_config(config)
+    if config["provider"] != "ollama":
+        openai_api_key()
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
                 limit, run_id, max_calls, retry_uncertain)
 

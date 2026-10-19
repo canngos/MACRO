@@ -17,7 +17,8 @@ def summarize(run_dir):
         results[(row["case_id"], row["order"], row["system"])] = row
     benchmark = manifest.get("policy_version") == "benchmark-policy-v1"
     final = benchmark and manifest.get("dataset", {}).get("split") == "test"
-    report = {"mode": manifest["mode"], "is_model_performance": manifest["mode"] == "live",
+    report = {"mode": manifest["mode"], "provider": manifest["config"].get("provider", "openai"),
+              "model": manifest["config"].get("model"), "is_model_performance": manifest["mode"] == "live",
               "warning": "OFFLINE FIXTURES ONLY: not evidence of judge reliability" if manifest["mode"] == "offline" else
                          "Benchmark test results; human review scheduled after inference" if final else "Development results; not final benchmark estimates",
               "metrics": compute(cases, refs, results)}
@@ -39,7 +40,10 @@ def summarize(run_dir):
         "latency_seconds_sum": sum(c.get("latency_seconds", 0) for c in calls),
         "tool_executions": sum(len(c.get("executed_tools", [])) for c in calls),
         "currency_estimate": None, "note": "All retry/tool-followup calls included. Unreported usage is unknown, not zero. No pricing configured."}
-    pricing = manifest["config"].get("pricing")
+    local = report["provider"] == "ollama"
+    pricing = None if local else manifest["config"].get("pricing")
+    if local:
+        report["costs"]["note"] = "Local Ollama requests. Tokens and latency are recorded; electricity/hardware costs are not estimated."
     if pricing:
         # Optional verified configuration: uncached input upper estimate; never invent a price.
         for key in ["input_per_million", "output_per_million", "currency", "date", "source"]:
@@ -61,6 +65,7 @@ def summarize(run_dir):
                 (totals["prompt_tokens"] * pricing["input_per_million"] + totals["completion_tokens"] * pricing["output_per_million"]) / 1e6}
     write_json(run_dir / "summary.json", report)
     lines = ["# MACRO evaluation report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
+             f"Provider: {report['provider']}. Model: {report['model']}.", "",
              "| System | Completed | Constraint precision | Constraint recall | Dominance accuracy | Priority alignment | Order stability |",
              "|---|---:|---:|---:|---:|---:|---:|"]
     def rate(x):

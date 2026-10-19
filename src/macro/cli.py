@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from macro.shared.io import read_json
+from macro.shared.config import provider_config
 
 
 def main():
@@ -21,7 +22,7 @@ def main():
     validate = sub.add_parser("validate", help="Verify benchmark hashes, labels and development/test separation")
     validate.add_argument("--cases", default="data/benchmark-v2/test")
     for name in ("run", "plan"):
-        p = sub.add_parser(name, help="Run real AG2 judges (paid)" if name == "run" else "Validate inputs and preview request counts (no API calls)")
+        p = sub.add_parser(name, help="Run AG2 judges using the selected provider" if name == "run" else "Validate inputs and preview request counts (no API calls)")
         p.add_argument("--cases", default="data/benchmark-v2/test")
         p.add_argument("--config", default="configs/benchmark-judges.json")
         p.add_argument("--limit", type=int, help="Number of cases; omitted means the complete selected split")
@@ -50,12 +51,12 @@ def main():
             print(json.dumps(summarize(args.run_dir), indent=2))
         else:
             from macro.evaluation.runner import experiment_plan, run
+            config = provider_config(read_json(args.config))
             if args.command == "run":
-                if not args.allow_paid_api:
+                if config["provider"] == "openai" and not args.allow_paid_api:
                     parser.error("Evaluation incurs API costs. Add --allow-paid-api to run.")
                 if args.max_calls is None:
-                    parser.error("Set --max-calls explicitly to cap paid requests.")
-            config = read_json(args.config)
+                    parser.error("Set --max-calls explicitly to cap model requests.")
             if args.command == "plan":
                 print(json.dumps(experiment_plan(args.cases, args.limit, config), indent=2))
             else:

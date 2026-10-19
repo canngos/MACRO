@@ -15,7 +15,38 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-For an existing setup, keep your existing `.env`. Set `OPENAI_API_KEY` in that file. Run commands from the project folder; `.env` takes precedence over the terminal environment. In PyCharm, select `.venv\Scripts\python.exe` as the interpreter. Model settings are in [configs/benchmark-judges.json](configs/benchmark-judges.json).
+For an existing setup, keep your existing `.env`. Run commands from the project folder; `.env` takes precedence over the terminal environment. In PyCharm, select `.venv\Scripts\python.exe` as the interpreter. Shared judge settings are in [configs/benchmark-judges.json](configs/benchmark-judges.json).
+
+## Choose Ollama or OpenAI
+
+For **local Ollama**, start the Ollama application (or `ollama serve` if it is not already running) and use `ollama list` to find your downloaded model's exact name. Set:
+
+```dotenv
+IS_LOCAL_LLM=true
+LOCAL_LLM_MODEL=your-installed-model-name
+```
+
+Replace the example name with an installed model that supports **tool calling and structured JSON responses**. An OpenAI key is unnecessary in local mode. A blank model name is rejected; connection/model errors never trigger a fallback to OpenAI.
+
+No additional pip installation is required beyond the project setup. AG2 uses the existing OpenAI client to reach Ollama's [OpenAI-compatible endpoint](https://docs.ollama.com/api/openai-compatibility) at `http://127.0.0.1:11434/v1`. The separate native `autogen[ollama]` adapter is not used. Ollama itself and a downloaded model must be installed separately.
+
+Try one development case locally:
+
+```powershell
+.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/dev --limit 1
+.\.venv\Scripts\python.exe -m macro run --cases data/benchmark-v2/dev --limit 1 --max-calls 24 --run-id ollama-dev-01
+```
+
+Local runs do not require `--allow-paid-api`; `--max-calls` still bounds requests. If your PC needs longer per response, increase `timeout_seconds` in the judge configuration before starting a new run. Local mode uses temperature 0 and sends the configured output-token cap as `max_tokens`; OpenAI-specific reasoning settings are omitted. The same local model/settings apply to all four roles.
+
+For **OpenAI**, set:
+
+```dotenv
+IS_LOCAL_LLM=false
+OPENAI_API_KEY=your-api-key
+```
+
+The model then comes from `configs/benchmark-judges.json`; `LOCAL_LLM_MODEL` is ignored. The paid commands below apply to this mode. An absent `IS_LOCAL_LLM` defaults to OpenAI for existing setups.
 
 ## Preview the evaluation (no API charges)
 
@@ -25,7 +56,7 @@ For an existing setup, keep your existing `.env`. Set `OPENAI_API_KEY` in that f
 
 This validates the benchmark and previews all 400 test cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 3,200 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
 
-## Run the real judges (incurs API charges)
+## Run the judges with OpenAI (incurs API charges)
 
 First check a few development cases:
 
@@ -44,7 +75,7 @@ Then run the 400 test cases:
 | `--cases` | Split folder; defaults to `data/benchmark-v2/test` |
 | `--limit` | Number of cases; omitted means the whole selected split |
 | `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
-| `--allow-paid-api` | Required acknowledgement of API costs |
+| `--allow-paid-api` | Required for OpenAI; unnecessary for local Ollama |
 | `--max-calls` | Required request cap; **not a money limit or usage prediction** |
 | `--run-id` | Output folder name inside `results/` |
 
@@ -53,6 +84,8 @@ Use a new run ID after changing code, configuration or cases, including after th
 ## Read the results
 
 Open `results/<run-id>/report.html`. It is generated automatically and includes decisions, evidence, judge rationales, raw responses and warnings.
+
+Reports and manifests identify the selected provider/model. Changing either requires a new run ID. Local runs record request counts, tokens and latency without applying OpenAI pricing; local electricity/hardware costs are not estimated. Keep different-model experiments separate when comparing single and specialist judges.
 
 - `summary.json` and `report.md`: metrics and recorded inference usage. Money estimates require configured pricing.
 - `roles/`: individual responses, validation errors and retries.

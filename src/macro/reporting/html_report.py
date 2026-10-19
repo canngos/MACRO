@@ -167,7 +167,7 @@ def render_report(run_dir, report=None):
     parts = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
              '<title>MACRO · ' + h(run_dir.name) + '</title><style>' + CSS + '</style></head><body><main>',
              '<div class="eyebrow">MACRO / Evaluation</div><h1>Judge decision report</h1>',
-             f'<p class="muted">Run {h(run_dir.name)} · {h(manifest["mode"])} · {h(manifest["config"].get("model"))}</p>',
+             f'<p class="muted">Run {h(run_dir.name)} · {h(manifest["mode"])} · {h(manifest["config"].get("provider", "openai"))} · {h(manifest["config"].get("model"))}</p>',
              '<p class="muted">' + h(report["warning"]) + '</p><div class="stats">']
     for label, value in [("Cases", len(cases)), ("API requests", cost["model_calls"]), ("Total tokens", f'{cost["total_tokens"]:,}'), ("Retry requests", cost["retry_attempt_calls"])]:
         parts.append(f'<div class="stat"><span class="muted">{h(label)}</span><strong>{h(value)}</strong></div>')
