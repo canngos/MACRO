@@ -1,0 +1,10 @@
+{
+  "policy_version": "benchmark-policy-v1",
+  "model": "gpt-5-nano",
+  "reasoning_effort": "low",
+  "max_completion_tokens": 3500,
+  "timeout_seconds": 60,
+  "max_attempts": 2,
+  "max_tool_rounds": 2,
+  "pricing": null
+}

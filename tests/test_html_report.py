@@ -9,8 +9,8 @@ from unittest.mock import patch
 from macro.reporting.html_report import diagnostic_notes, render_report
 from macro.shared.io import write_json, write_jsonl
 from macro.reporting.summary import summarize
-from macro.shared.policy import findings
-from tests.test_pilot import CONFIG, fixture
+from macro.shared.benchmark_policy import evaluate_case
+from tests.fixtures import CONFIG, fixture
 
 
 class Markup(HTMLParser):
@@ -34,7 +34,7 @@ class HtmlReportTests(unittest.TestCase):
         case["candidate_pool"][0]["title"] = '<script>alert("recipe")</script>'
         write_json(folder / "manifest.json", {"mode": "live", "config": CONFIG})
         write_jsonl(folder / "cases.snapshot.jsonl", [case])
-        write_jsonl(folder / "references.snapshot.private.jsonl", [{"case_id": "fixture", **findings(case)}])
+        write_jsonl(folder / "references.snapshot.private.jsonl", [{"case_id": "fixture", **evaluate_case(case)}])
         for name in ["roles", "evaluations", "calls"]:
             (folder / name).mkdir()
         assessment = {"findings": [

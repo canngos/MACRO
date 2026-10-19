@@ -1,140 +1,84 @@
-# MACRO — Part 1
+# MACRO
 
-MACRO compares two ways of evaluating recipe recommendations with AG2:
+MACRO evaluates **two already selected recipe recommendations** against a user's requirements. It compares one structured AG2 judge with three independent specialists: preference, recipe attributes/constraints, and explanation quality. A fixed Python coordinator combines the specialists' findings; there are no discussion rounds.
 
-- **Single judge:** one AI agent evaluates all criteria.
-- **Specialist judges:** three independent AI agents evaluate preferences, recipe attributes and constraints, and explanations. A Python coordinator combines their findings using a fixed policy.
+The current package, `data/benchmark-v2/`, contains **400 test cases and 120 separate development cases**. The test set has 80 cases each of constraint violations, dominance, trade-offs, ties and both recommendations violating constraints. The code uses one shared [evaluation policy](EVALUATION_POLICY.md), including speed when explicitly declared.
 
-The current pilot contains **20 cases** built from real HUMMUS recipes and constructed user profiles: 7 constraint violations, 6 dominated recommendations (one option is at least as good on every objective and better on one), and 7 genuine trade-offs. This is a small demonstration before the larger course study.
+## Set up
 
-The coordinator uses the judges' reported feasibility first, then dominance, then declared user priorities. A trade-off without enough priorities can remain unresolved. Reference answers are kept separate from agent inputs.
-
-## 1. Set up
-
-Use **Python 3.11 or newer**. Open PowerShell in the project folder and run:
+Use Python 3.11 or newer. Open PowerShell in the project folder:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
 .\.venv\Scripts\python.exe -m pip install --no-deps -e .
-```
-
-If you use PyCharm, select `.venv\Scripts\python.exe` as the project interpreter.
-
-The prepared cases are in `data/pilot/`; you do not need to download the original dataset to run them. Read [the case preview](data/pilot/preview.md) for examples.
-
-## 2. Set your API key
-
-Copy `.env.example` to `.env` in the project folder:
-
-```powershell
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and replace `your-api-key` with your OpenAI API key:
+For an existing setup, keep your existing `.env`. Set `OPENAI_API_KEY` in that file. Run commands from the project folder; `.env` takes precedence over the terminal environment. In PyCharm, select `.venv\Scripts\python.exe` as the interpreter. Model settings are in [configs/benchmark-judges.json](configs/benchmark-judges.json).
 
-```dotenv
-OPENAI_API_KEY=your-api-key
-```
-
-Run commands from the project folder so the application can read `.env`. Its key takes precedence over `OPENAI_API_KEY` in the terminal environment, which remains a fallback. `.env` is excluded from Git. The model and other settings are in [configs/pilot.json](configs/pilot.json); the current model is `gpt-5-nano`.
-
-## 3. Try one case
-
-**Preview the run — no API calls or charges:**
+## Preview the evaluation (no API charges)
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro plan --limit 1
+.\.venv\Scripts\python.exe -m macro plan
 ```
 
-**Run the real AI judges — incurs OpenAI API charges:**
+This validates the benchmark and previews all 400 test cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 3,200 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
+
+## Run the real judges (incurs API charges)
+
+First check a few development cases:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --limit 1 --max-calls 24 --run-id live-smoke-03
+.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id benchmark-v2-dev-02
 ```
 
-Here, `python -m macro` starts the project. `plan` previews the request count; `run` performs the evaluation.
+Then run the 400 test cases:
+
+```powershell
+.\.venv\Scripts\python.exe -m macro run --allow-paid-api --max-calls 6000 --run-id benchmark-v2-02
+```
 
 | Option | Meaning |
 |---|---|
-| `--allow-paid-api` | Explicitly permits paid API calls |
-| `--limit 1` | Evaluates one case |
-| `--max-calls 24` | Caps API requests at 24; this is not a money limit |
-| `--run-id live-smoke-03` | Saves this experiment under `results/live-smoke-03/` |
+| `--cases` | Split folder; defaults to `data/benchmark-v2/test` |
+| `--limit` | Number of cases; omitted means the whole selected split |
+| `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
+| `--allow-paid-api` | Required acknowledgement of API costs |
+| `--max-calls` | Required request cap; **not a money limit or usage prediction** |
+| `--run-id` | Output folder name inside `results/` |
 
-Each case is evaluated with both A/B and B/A ordering to check whether order changes the decision. That means **8 initial calls per case**: 2 single-judge calls and 6 specialist calls. Retries and tool follow-ups can add calls; reaching the cap can leave a run incomplete. The Python coordinator adds no API calls.
+Use a new run ID after changing code, configuration or cases, including after this refactor. To resume an interrupted run with unchanged inputs and code, repeat its command and ID. Completed assessments are reused. Do not run two processes with the same ID. An uncertain request requires inspecting its saved call record before explicitly permitting a retry; it may already have been billed.
 
-## 4. Run all 20 cases
+## Read the results
 
-After checking the one-case result:
+Open `results/<run-id>/report.html`. It is generated automatically and includes decisions, evidence, judge rationales, raw responses and warnings.
 
-```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --limit 20 --max-calls 240 --run-id live-pilot-03
-```
+- `summary.json` and `report.md`: metrics and recorded inference usage. Money estimates require configured pricing.
+- `roles/`: individual responses, validation errors and retries.
+- `evaluations/`: single-judge and coordinator decisions, including raw findings and constraint verification.
+- `calls/`: request records and token usage.
+- `manifest.json` and snapshots: the code/configuration/input identity used for the run.
 
-This starts with **160 model calls**, plus any retries or tool follow-ups within the request cap.
-
-Use a **new run ID** for a new experiment or after changing code, settings, or cases. To resume an interrupted run, repeat its original command with the same ID; completed assessments are reused. Do not run two processes with the same ID at once. If the application reports an uncertain API request, inspect its saved call record before allowing a retry, since it may already have been billed.
-
-## 5. Read the results
-
-Open **`results/live-pilot-03/report.html`** in your browser (or `results/live-smoke-03/report.html` for the one-case run).
-
-The HTML report is generated automatically. It shows decisions, each judge's explanation, evidence references, warnings, and expandable raw responses.
-
-Other saved files include:
-
-- `summary.json`: overall metrics and API usage.
-- `roles/`: individual judge responses and errors.
-- `evaluations/`: single-judge and coordinator decisions.
-- `calls/`: API request records and usage.
-
-To rebuild reports from an existing run **without making API calls**:
+Rebuild reports without API calls:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro summarize results/live-pilot-03
+.\.venv\Scripts\python.exe -m macro summarize results/benchmark-v2-02
 ```
 
-## Prepare the larger recipe subset
+Human review follows inference: two reviewers independently assess approximately 50 benchmark-v2 cases without seeing LLM judgments. Selecting and reviewing that sample remains a separate task.
 
-The separate Phase 1 pipeline builds a versioned 5,000-recipe subset without changing
-the historical pilot. Read [DATA_PREPARATION.md](DATA_PREPARATION.md) for the attribute
-contract, filtering and ingredient-mapping limits. From this folder:
+## Code guide
 
-```powershell
-.\venv\Scripts\python.exe -m macro.evaluate_case_generation.dataset --source ../pp_recipes/pp_recipes.csv --config configs/dataset-v1.json --out data/subset-v1
-```
-
-Use your environment's Python path if it differs. The command refuses to overwrite an
-existing output folder. It creates recipes, an audit, distributions and a datasheet;
-manual review and benchmark construction remain separate steps.
-
-## Where to find the code
-
-The new-policy benchmark is generated separately from the 20-case pilot:
-
-```powershell
-.\venv\Scripts\python.exe -m macro.evaluate_case_generation.benchmark
-.\venv\Scripts\python.exe -m macro.evaluate_case_generation.benchmark --verify-only
-```
-
-The defaults create **120 development cases and 400 final test cases** under
-`data/benchmark-v2/`, using `configs/benchmark-v2.json` and
-[EVALUATION_POLICY.md](EVALUATION_POLICY.md). Read the generated benchmark README
-for coverage and pending reviews. Gold references and source mappings are in its
-`private/` folder; only the split's `cases.jsonl` belongs in judge input.
-The historical pilot judge prompts/runner do not yet support this new profile schema.
-Each of the five case categories has 24 development and 80 final-test cases. Category
-balance is distinct from verdict-label balance. The earlier 600-test-case draft remains
-in `data/benchmark-v1/` for provenance; do not combine versions for evaluation.
-
-| Folder inside `src/macro/` | Purpose |
+| Folder inside `src/macro/` | Responsibility |
 |---|---|
-| `evaluate_case_generation/` | Prepare recipes and evaluation cases |
-| `ai_agents/` | AG2 agents, prompts, response schemas, and tools |
-| `coordinator/` | Combine specialist findings using the fixed policy |
-| `evaluation/` | Run experiments and calculate metrics |
-| `reporting/` | Generate HTML, Markdown, and JSON reports |
-| `shared/` | Common evaluation rules and file helpers |
+| `evaluate_case_generation/` | Prepare the HUMMUS subset and construct case pairs |
+| `ai_agents/` | Shared rubric, role prompts, response schemas and AG2 calls |
+| `coordinator/` | One fixed aggregation implementation in `aggregation.py` |
+| `evaluation/` | Validate inputs, run experiments, resume and calculate metrics |
+| `reporting/` | Generate readable reports from saved outputs |
+| `shared/` | Deterministic reference policy, comparison and file helpers |
 
-[cli.py](src/macro/cli.py) defines the commands. See [ARCHITECTURE.md](ARCHITECTURE.md) for the detailed code guide and [PLAN.md](PLAN.md) for the project scope and phases.
+[cli.py](src/macro/cli.py) defines the commands. See [ARCHITECTURE.md](ARCHITECTURE.md) for the execution flow and [DATA_PREPARATION.md](DATA_PREPARATION.md) for source-data preparation. `macro validate` verifies the existing benchmark; `macro audit` and `macro generate` prepare new data without API calls and refuse to overwrite existing packages.
+
+Historical pilot data and results remain for provenance and report viewing. The obsolete pilot evaluator has been removed; new evaluations use the current benchmark schema. Previously inspected pilot recipes remain excluded during new benchmark generation.

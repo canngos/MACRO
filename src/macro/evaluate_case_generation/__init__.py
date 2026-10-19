@@ -1,2 +1,1 @@
-"""Case generation and source verification."""
-GENERATOR_VERSION = "pilot-v1"
+"""Dataset preparation and benchmark case generation."""
