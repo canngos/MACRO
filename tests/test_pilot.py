@@ -271,7 +271,7 @@ class RunnerTests(unittest.TestCase):
             main()
             self.assertEqual(mocked.call_args.args[2], 1)
             mocked.assert_called_once()
-        with patch.dict(os.environ, {}, clear=True), patch("macro.evaluation.runner._run") as mocked:
+        with tempfile.TemporaryDirectory() as empty, patch("macro.shared.config.Path.cwd", return_value=Path(empty)), patch.dict(os.environ, {}, clear=True), patch("macro.evaluation.runner._run") as mocked:
             with self.assertRaisesRegex(ValueError, "OPENAI_API_KEY"):
                 run("data", CONFIG)
             mocked.assert_not_called()

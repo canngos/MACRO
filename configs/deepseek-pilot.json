@@ -1,0 +1,11 @@
+{
+  "provider": "deepseek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-flash",
+  "thinking": "disabled",
+  "max_tokens": 3500,
+  "timeout_seconds": 120,
+  "max_attempts": 2,
+  "max_tool_rounds": 2,
+  "pricing": null
+}

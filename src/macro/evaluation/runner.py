@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
-from macro.shared.config import openai_api_key
+from macro.shared.config import api_key
 from macro.ai_agents.agents import LiveProvider
 from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate
 from macro.reporting.summary import summarize
@@ -66,7 +66,7 @@ def experiment_plan(folder, limit, config):
 
 def run(folder, config, limit=20, run_id=None, max_calls=240, retry_uncertain=False):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
-    openai_api_key()
+    api_key(config)
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
                 limit, run_id, max_calls, retry_uncertain)
 
@@ -147,6 +147,8 @@ def _run(folder, config, provider_factory, mode, limit=20, run_id=None, max_call
                                   "tool_calls": [], "note": "Inspect call records for responses/usage; exception text omitted to protect secrets."}
                         if isinstance(exc, AssessmentValidationError):
                             record.update(validation_errors=exc.errors, raw=exc.raw)
+                            if hasattr(exc, "repair_context"):
+                                record["repair_context"] = exc.repair_context
                         if getattr(exc, "status_code", None) in [400, 401, 403, 404]:
                             stop = True
                     record.update({"case_id": case["case_id"], "order": order, "role": role, "attempt": attempt + 1,

@@ -41,6 +41,31 @@ Run commands from the project folder so the application can read `.env`. Its key
 
 ## 3. Try one case
 
+DeepSeek is also supported for the historical pilot with
+[configs/deepseek-pilot.json](configs/deepseek-pilot.json). Set `DEEPSEEK_API_KEY`
+in your existing `.env` or terminal environment; credentials are selected by
+provider, with `.env` taking precedence. Commands must run from this directory.
+Configurations without `provider` still select OpenAI.
+
+```powershell
+.\venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/pilot --limit 1
+# Paid development check, only when ready to spend API credits:
+.\venv\Scripts\python.exe -m macro run --config configs/deepseek-pilot.json --cases data/pilot --limit 1 --allow-paid-api --max-calls 24 --run-id deepseek-pilot-001
+```
+
+Thinking must be explicitly configured. `configs/deepseek-pilot.json` disables it;
+`configs/deepseek-thinking-pilot.json` enables it with high effort, a 16,384-token
+cap and a 180-second timeout for every judge role. See Section 8 of
+[DEEPSEEK_MIGRATION.md](DEEPSEEK_MIGRATION.md#8-thinking-enabled-execution-implemented)
+for protocol handling, offline tests and a bounded smoke-run command.
+DeepSeek uses JSON-object output with
+local schema validation; OpenAI retains native schema enforcement. Both receive
+the same schema instructions under prompt version `pilot-v3-provider`. Use fresh
+run IDs after this migration. Pricing is unset, so reports show usage without a
+monetary estimate; AG2's unknown-model zero cost is not an actual price. Offline
+tests verify serialization, not live endpoint compatibility. See
+[the migration status](DEEPSEEK_MIGRATION.md) for verification and pending work.
+
 **Preview the run — no API calls or charges:**
 
 ```powershell

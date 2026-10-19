@@ -30,6 +30,11 @@ def summarize(run_dir):
         "tool_executions": sum(len(c.get("executed_tools", [])) for c in calls),
         "currency_estimate": None, "note": "All retry/tool-followup calls included. Unreported usage is unknown, not zero. No pricing configured."}
     pricing = manifest["config"].get("pricing")
+    reasoning_counts = [(call.get("usage") or {}).get("completion_tokens_details") or {} for call in calls]
+    reported_reasoning = [details["reasoning_tokens"] for details in reasoning_counts
+                          if type(details.get("reasoning_tokens")) is int and details["reasoning_tokens"] >= 0]
+    report["costs"]["reported_reasoning_tokens"] = sum(reported_reasoning) if reported_reasoning else None
+    report["costs"]["calls_with_reasoning_token_breakdown"] = len(reported_reasoning)
     if pricing:
         # Optional verified configuration: uncached input upper estimate; never invent a price.
         for key in ["input_per_million", "output_per_million", "currency", "date", "source"]:
