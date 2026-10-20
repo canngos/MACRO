@@ -17,11 +17,35 @@ Copy-Item .env.example .env
 
 For an existing setup, keep your existing `.env`. Run commands from the project folder; `.env` takes precedence over the terminal environment. In PyCharm, select `.venv\Scripts\python.exe` as the interpreter. Shared judge settings are in [configs/benchmark-judges.json](configs/benchmark-judges.json).
 
-## Choose Ollama or OpenAI
+## Choose DeepInfra, Ollama or OpenAI
+
+For **DeepInfra**, put your DeepInfra API key in `.env`:
+
+```dotenv
+LLM_PROVIDER=deepinfra
+DEEPINFRA_API_KEY=your-deepinfra-key
+DEEPINFRA_MODEL=Qwen/Qwen3.5-9B
+```
+
+`LLM_PROVIDER` selects `deepinfra`, `ollama` or `openai` and takes precedence over the old `IS_LOCAL_LLM` flag. There is no automatic fallback between providers. Keys stay in `.env` and are not written into run manifests.
+
+DeepInfra uses the existing AG2/OpenAI SDK dependencies; **no extra pip install is needed**. The [documented API endpoint](https://deepinfra.com/Qwen/Qwen3.5-9B/api?example=openai-python) is `https://api.deepinfra.com/v1/openai`. Your PC runs the evaluation code; DeepInfra runs the model. This does not use your OpenAI account or local GPU.
+
+DeepInfra uses temperature 0 and the shared output cap (`max_tokens`), timeout, retry and tool limits from `configs/benchmark-judges.json`. Reasoning is left at the provider's model default; OpenAI's `reasoning_effort` and `store` settings are omitted. All four judge roles use the same settings. The Qwen3.5-9B standard-tier price snapshot is $0.10 input / $0.15 output per million tokens, verified 19 October 2026; it is saved in each run's configuration and used for report estimates. Reasoning tokens are billable output tokens. Other DeepInfra models do not inherit these prices. Rates can change; estimates exclude taxes and unknown usage.
+
+Start with a small compatibility run, then inspect its HTML report before the 400 cases:
+
+```powershell
+.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/dev --limit 3
+.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
+```
+
+The plan command is free and does not need an API key. The run command makes paid requests. DeepInfra's BF16 deployment differs from the local Ollama artifact: use a fresh run ID, keep local development results separate, and run both benchmark methods on the same provider/model/settings. Runs remain sequential.
 
 For **local Ollama**, start the Ollama application (or `ollama serve` if it is not already running) and use `ollama list` to find your downloaded model's exact name. Set:
 
 ```dotenv
+LLM_PROVIDER=ollama
 IS_LOCAL_LLM=true
 LOCAL_LLM_MODEL=your-installed-model-name
 ```
@@ -42,13 +66,16 @@ Local runs do not require `--allow-paid-api`; `--max-calls` still bounds request
 For **OpenAI**, set:
 
 ```dotenv
+LLM_PROVIDER=openai
 IS_LOCAL_LLM=false
 OPENAI_API_KEY=your-api-key
 ```
 
-The model then comes from `configs/benchmark-judges.json`; `LOCAL_LLM_MODEL` is ignored. The paid commands below apply to this mode. An absent `IS_LOCAL_LLM` defaults to OpenAI for existing setups.
+The model then comes from `configs/benchmark-judges.json`; the other providers' model variables are ignored. If `LLM_PROVIDER` is absent/blank, existing setups still use `IS_LOCAL_LLM` (true for Ollama, false or absent for OpenAI).
 
 ## Preview the evaluation (no API charges)
+
+The historical Ollama development review is recorded in [BENCHMARK_RUN.md](BENCHMARK_RUN.md). For DeepInfra, use the current instructions here and a new run ID.
 
 ```powershell
 .\.venv\Scripts\python.exe -m macro plan
@@ -56,18 +83,18 @@ The model then comes from `configs/benchmark-judges.json`; `LOCAL_LLM_MODEL` is 
 
 This validates the benchmark and previews all 400 test cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 3,200 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
 
-## Run the judges with OpenAI (incurs API charges)
+## Run the judges with DeepInfra or OpenAI (incurs API charges)
 
 First check a few development cases:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id benchmark-v2-dev-02
+.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
 ```
 
 Then run the 400 test cases:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --max-calls 6000 --run-id benchmark-v2-02
+.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/test --limit 400 --max-calls 6000 --run-id deepinfra-benchmark-400-01
 ```
 
 | Option | Meaning |
@@ -75,7 +102,7 @@ Then run the 400 test cases:
 | `--cases` | Split folder; defaults to `data/benchmark-v2/test` |
 | `--limit` | Number of cases; omitted means the whole selected split |
 | `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
-| `--allow-paid-api` | Required for OpenAI; unnecessary for local Ollama |
+| `--allow-paid-api` | Required for DeepInfra and OpenAI; unnecessary for local Ollama |
 | `--max-calls` | Required request cap; **not a money limit or usage prediction** |
 | `--run-id` | Output folder name inside `results/` |
 
@@ -96,7 +123,7 @@ Reports and manifests identify the selected provider/model. Changing either requ
 Rebuild reports without API calls:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro summarize results/benchmark-v2-02
+.\.venv\Scripts\python.exe -m macro summarize results/deepinfra-benchmark-400-01
 ```
 
 Human review follows inference: two reviewers independently assess approximately 50 benchmark-v2 cases without seeing LLM judgments. Selecting and reviewing that sample remains a separate task.

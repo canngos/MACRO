@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
-from macro.shared.config import openai_api_key, provider_config
+from macro.shared.config import openai_api_key, deepinfra_api_key, provider_config
 from macro.ai_agents.agents import LiveProvider
 from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate, comparisons, guard_single
 from macro.reporting.summary import summarize
@@ -71,8 +71,12 @@ def experiment_plan(folder, limit, config):
 def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
     config = config if "provider" in config else provider_config(config)
-    if config["provider"] != "ollama":
+    if config["provider"] == "deepinfra":
+        deepinfra_api_key()
+    elif config["provider"] == "openai":
         openai_api_key()
+    elif config["provider"] != "ollama":
+        raise ValueError("Unsupported LLM provider")
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
                 limit, run_id, max_calls, retry_uncertain)
 

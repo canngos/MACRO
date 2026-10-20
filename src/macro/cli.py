@@ -53,7 +53,7 @@ def main():
             from macro.evaluation.runner import experiment_plan, run
             config = provider_config(read_json(args.config))
             if args.command == "run":
-                if config["provider"] == "openai" and not args.allow_paid_api:
+                if config["provider"] != "ollama" and not args.allow_paid_api:
                     parser.error("Evaluation incurs API costs. Add --allow-paid-api to run.")
                 if args.max_calls is None:
                     parser.error("Set --max-calls explicitly to cap model requests.")
