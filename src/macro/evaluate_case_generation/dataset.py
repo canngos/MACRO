@@ -1,4 +1,4 @@
-"""Versioned, offline Phase 1 preparation. Does not modify pilot policy or data."""
+"""Versioned offline preparation of HUMMUS recipe evidence."""
 import argparse
 import ast
 import csv
@@ -225,7 +225,7 @@ def prepare(source, out, config):
               "- Olive oil is an explicit non-match for whole-olive preference. Exclusions have the same bounded group semantics, not biological ingredient ancestry.",
               "- Empty normalization comments and mass checks reduce obvious errors but do not prove source truth. Automatic checks are not human validation.",
               "- Duration bounds, complete-field requirements and tracked-group coverage bias selection. Sampling is seeded uniform reservoir sampling over eligible recipes, not all HUMMUS.",
-              "- No 600-case generation or dev/test assignment has been performed by this command.", ""]
+              "- This command prepares source recipes; case generation and development/test assignment are separate steps.", ""]
     (out / "DATASHEET.md").write_text("\n".join(lines), encoding="utf-8")
     print(json.dumps({k: report[k] for k in ["source_rows", "eligible_rows", "selected_rows", "recipes_sha256"]}), flush=True)
     return report

@@ -1,8 +1,9 @@
-"""Deterministic policy for new benchmark cases; independent of historical pilot."""
+"""Deterministic reference policy for the current benchmark."""
 import math
 
+from .comparison import EPSILON
+
 POLICY_VERSION = "benchmark-policy-v1"
-EPSILON = 1e-9
 GROUPS = frozenset(["tomato", "broccoli", "spinach", "mushroom", "onion", "garlic", "carrot", "olive"])
 OBJECTIVES = frozenset(["preference", "nutrition", "speed"])
 VERDICTS = frozenset(["A", "B", "tie", "insufficient_information", "both_violate"])

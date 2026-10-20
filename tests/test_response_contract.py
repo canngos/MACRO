@@ -10,20 +10,11 @@ from unittest.mock import patch
 
 from macro.shared.io import read_json, write_jsonl
 from macro.ai_agents.agents import LiveProvider
-from macro.shared.policy import findings, swapped
+from macro.shared.comparison import swapped
 from macro.ai_agents.prompts import prompt, visible_case
 from macro.evaluation.runner import CallRecorder, _run
 from macro.ai_agents.schemas import AssessmentValidationError, assessment_groups, response_schema, validate_assessment
-from tests.fixtures import OfflineProvider, as_wire
-from tests.test_pilot import CONFIG, fixture
-
-
-def completion(raw):
-    from openai.types.chat import ChatCompletion
-    return ChatCompletion.model_validate({"id": "mock", "object": "chat.completion", "created": 0,
-        "model": "gpt-5-nano", "choices": [{"index": 0, "finish_reason": "stop",
-            "message": {"role": "assistant", "content": raw}}],
-        "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}})
+from tests.fixtures import OfflineProvider, as_wire, CONFIG, fixture, completion, write_fixture_package
 
 
 class ResponseContractTests(unittest.TestCase):
@@ -42,9 +33,9 @@ class ResponseContractTests(unittest.TestCase):
             for definition in schema["$defs"].values():
                 self.assertNotIn("candidate", definition["properties"])
                 allowed = definition["properties"]["evidence"]["items"]["enum"]
-                self.assertIn("/profile/priority", allowed)
+                self.assertIn("/profile/priorities", allowed)
                 self.assertIn("/candidate_pool/1/nutrition_score", allowed)
-                self.assertNotIn("/case/profile/priority", allowed)
+                self.assertNotIn("/case/profile/priorities", allowed)
                 self.assertNotIn("/references/winner", allowed)
 
     def test_direct_case_packet_and_reversed_mapping(self):
@@ -64,7 +55,7 @@ class ResponseContractTests(unittest.TestCase):
         self.assertEqual(normalized["decision"], "B")
         self.assertEqual(normalized["attributes"], self.record["assessment"]["attributes"])
         self.assertTrue(raw["attributes"][0]["evidence"][0].startswith("/case/"))
-        raw["attributes"][0]["evidence"] = ["/case/profile/priority contains a stated priority"]
+        raw["attributes"][0]["evidence"] = ["/case/profile/priorities contains a stated priority"]
         with self.assertRaises(AssessmentValidationError) as error:
             validate_assessment("single", raw, self.evidence)
         self.assertEqual(error.exception.errors[0]["code"], "evidence_pointer")
@@ -130,9 +121,8 @@ class ResponseContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, patch.object(socket, "create_connection", side_effect=AssertionError("Network forbidden")):
             try:
                 os.chdir(folder)
-                write_jsonl("data/cases.jsonl", [fixture()])
-                write_jsonl("data/references.private.jsonl", [{"case_id": "fixture", **findings(fixture())}])
-                path = _run("data", CONFIG, lambda recorder: RetryFixture(), "offline", limit=1, run_id="repair-test")
+                write_fixture_package("data")
+                path = _run("data/test", CONFIG, lambda recorder: RetryFixture(), "offline", limit=1, max_calls=240, run_id="repair-test")
                 self.assertEqual(len(calls), 11)  # 8 initial role assessments, 3 bounded repairs.
                 failed = read_json(path/"roles/fixture_original_single_01.json")
                 self.assertEqual(failed["error_type"], "AssessmentValidationError")
@@ -143,7 +133,7 @@ class ResponseContractTests(unittest.TestCase):
                     self.assertEqual(report["metrics"][system]["evaluation_coverage"]["correct"], 2)
                     self.assertEqual(report["metrics"][system]["diagnostic_counts"], {})
                 count = len(calls)
-                _run("data", CONFIG, lambda recorder: RetryFixture(), "offline", limit=1, run_id="repair-test")
+                _run("data/test", CONFIG, lambda recorder: RetryFixture(), "offline", limit=1, max_calls=240, run_id="repair-test")
                 self.assertEqual(len(calls), count)
             finally:
                 os.chdir(previous)

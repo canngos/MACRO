@@ -5,13 +5,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
-from macro.shared.config import api_key
+from macro.shared.config import openai_api_key, deepinfra_api_key, provider_config
 from macro.ai_agents.agents import LiveProvider
-from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate
+from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate, comparisons, guard_single
 from macro.reporting.summary import summarize
-from macro.shared.policy import POLICY_VERSION, score_comparisons, swapped
-from macro.ai_agents.prompts import visible_case, prompt_version
-from macro.ai_agents.schemas import SCHEMAS, AssessmentValidationError, response_schema, schemas_for, schema_version, is_benchmark
+from macro.shared.comparison import swapped
+from macro.ai_agents.prompts import BENCHMARK_PROMPT_VERSION, visible_case
+from macro.ai_agents.schemas import AssessmentValidationError, response_schema
+from macro.ai_agents.schemas import SCHEMAS, SCHEMA_VERSION
+from .inputs import load_inputs
 
 
 class BudgetExceeded(RuntimeError):
@@ -35,7 +37,7 @@ class CallRecorder:
 
     def begin(self, tag, role, messages):
         if len(list(self.folder.glob("*.json"))) >= self.max_calls:
-            raise BudgetExceeded("Maximum paid call count reached; resume with a larger explicit --max-calls if desired")
+            raise BudgetExceeded("Maximum request count reached; resume with a larger explicit --max-calls if desired")
         call_id = uuid.uuid4().hex
         write_json(self.folder / (call_id + ".json"), {"call_id": call_id, "tag": tag, "role": role,
             "status": "in_flight", "messages": messages, "started_utc": datetime.now(timezone.utc).isoformat()})
@@ -55,72 +57,48 @@ def source_code_hashes():
             for p in sorted(package_root.rglob("*.py"))}
 
 
-def load_inputs(folder, limit, split=None):
-    folder = Path(folder)
-    if split is not None:
-        if split not in ("dev", "test"):
-            raise ValueError("Benchmark split must be dev or test")
-        from macro.evaluate_case_generation.benchmark import verify_saved
-        verify_saved(folder)
-        case_path = folder / split / "cases.jsonl"
-        ref_path = folder / "private" / (split + ".references.jsonl")
-    else:
-        case_path, ref_path = folder / "cases.jsonl", folder / "references.private.jsonl"
-    all_cases = read_jsonl(case_path)
-    if type(limit) is not int or not 1 <= limit <= (len(all_cases) if split else 20):
-        raise ValueError("Part 1 limit must be 1..20; benchmark limit must fit the explicitly selected split")
-    cases = all_cases[:limit]
-    if not cases or any(is_benchmark(c) != (split is not None) for c in cases):
-        raise ValueError("Benchmark cases require --cases <benchmark-root> --split dev|test; do not mix policies")
-    ids = {c["case_id"] for c in cases}
-    refs = [r for r in read_jsonl(ref_path) if r["case_id"] in ids]
-    if len(ids) != len(cases) or len(refs) != len(cases) or {r["case_id"] for r in refs} != ids:
-        raise ValueError("Missing or duplicate references/case IDs")
-    return cases, refs
-
-
-def experiment_plan(folder, limit, config, split=None):
-    cases, _ = load_inputs(folder, limit, split)
+def experiment_plan(folder, limit, config):
+    cases, _, dataset = load_inputs(folder, limit, config)
     count = len(cases)
     initial = count * 2 * 4
-    return {"cases": count, "split": split, "policy_version": "benchmark-policy-v1" if split else POLICY_VERSION,
-            "orders": 2, "single_initial_calls": count * 2,
+    return {"cases": count, "dataset": dataset, "orders": 2, "single_initial_calls": count * 2,
             "specialist_initial_calls": count * 6, "total_initial_calls": initial,
             "maximum_with_all_retries_and_tool_rounds": initial * config["max_attempts"] * (config["max_tool_rounds"] + 1),
-            "model": config["model"], "note": "Plan only; no model initialized or API called."}
+            "model": config["model"], "provider": config.get("provider", "openai"),
+            "base_url": config.get("base_url"), "note": "Plan only; no model initialized or API called."}
 
 
-def run(folder, config, limit=20, run_id=None, max_calls=240, retry_uncertain=False, split=None):
+def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
-    if split == "test":
-        raise ValueError("Final test execution is disabled while benchmark review/freeze remains pending. Use --split dev for development; plan supports both splits.")
-    api_key(config)
+    config = config if "provider" in config else provider_config(config)
+    if config["provider"] == "deepinfra":
+        deepinfra_api_key()
+    elif config["provider"] == "openai":
+        openai_api_key()
+    elif config["provider"] != "ollama":
+        raise ValueError("Unsupported LLM provider")
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
                 limit, run_id, max_calls, retry_uncertain, split)
 
 
-def _run(folder, config, provider_factory, mode, limit=20, run_id=None, max_calls=240, retry_uncertain=False, split=None):
-    if max_calls < 0:
-        raise ValueError("Part 1 limit must be 1..20 and max_calls nonnegative")
-    folder = Path(folder)
-    cases, refs = load_inputs(folder, limit, split)
-    evidence_template = visible_case(cases[0])
-    benchmark = split is not None
+def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
+    if type(max_calls) is not int or max_calls < 0:
+        raise ValueError("Set an explicit nonnegative max_calls request cap")
+    cases, refs, dataset = load_inputs(folder, limit, config)
+    if mode == "live" and max_calls < len(cases) * 8:
+        raise ValueError(f"max-calls must cover at least {len(cases) * 8} initial requests; add room for retries/tools")
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
     if not run_id or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in run_id):
         raise ValueError("run-id must contain only letters, numbers, hyphens and underscores")
     run_dir = Path("results") / run_id
     source_hashes = source_code_hashes()
     identity = {"mode": mode, "config": config, "case_digest": digest(cases), "reference_digest": digest(refs),
-                "policy_version": "benchmark-policy-v1" if benchmark else POLICY_VERSION,
-                "aggregation_version": schema_version(evidence_template) if benchmark else AGGREGATION_VERSION,
-                "prompt_version": prompt_version(evidence_template), "code_hashes": source_hashes,
-                "schema_version": schema_version(evidence_template),
-                "wire_schema_hashes": {role: digest(response_schema(role, evidence_template if benchmark else None)) for role in SCHEMAS},
-                "schema_hashes": {k: digest(v.model_json_schema()) for k, v in schemas_for(evidence_template).items()}}
-    if benchmark:
-        identity.update(split=split, dataset_manifest_sha256=file_hash(folder / "manifest.json"),
-                        evaluation_status="development_only_not_final")
+                "dataset": dataset, "policy_version": dataset["policy_version"],
+                "aggregation_version": AGGREGATION_VERSION,
+                "prompt_version": BENCHMARK_PROMPT_VERSION, "code_hashes": source_hashes,
+                "schema_version": SCHEMA_VERSION,
+                "wire_schema_hashes": {role: digest(response_schema(role, cases[0])) for role in SCHEMAS},
+                "schema_hashes": {k: digest(v.model_json_schema()) for k, v in SCHEMAS.items()}}
     manifest_path = run_dir / "manifest.json"
     if manifest_path.exists():
         old = read_json(manifest_path)
@@ -202,18 +180,11 @@ def _run(folder, config, provider_factory, mode, limit=20, run_id=None, max_call
                     "status": single.get("status", "technical_failure"), "decision": a.get("decision"),
                     "attributes": a.get("attributes", []), "assessment": a}
                 if result["status"] == "ok":
-                    # Same consistency diagnostics for both systems; retain the single verdict.
-                    if benchmark:
-                        from macro.ai_agents.benchmark_schemas import comparisons
-                        _, result["comparison_diagnostics"] = comparisons(a["preferences"], a["attributes"], a, a["objectives"])
-                    else:
-                        _, result["comparison_diagnostics"] = score_comparisons(a["preferences"], a["attributes"], a)
+                    # Retain raw findings; apply the same public-fact hard-constraint check to both systems.
+                    _, result["comparison_diagnostics"] = comparisons(a["preferences"], a["attributes"], a, case["profile"]["objectives"])
+                    guard_single(result, case)
                 write_json(run_dir / "evaluations" / (tag + "_single.json"), result)
-                if benchmark:
-                    from macro.ai_agents.benchmark_schemas import aggregate as aggregate_benchmark
-                    panel = aggregate_benchmark(records)
-                else:
-                    panel = aggregate(records)
+                panel = aggregate(records, case)
                 write_json(run_dir / "evaluations" / (tag + "_specialists.json"), {"case_id": case["case_id"], "order": order, "system": "specialists", **panel})
                 print(f"{tag}: single={result['decision']} [{result['status']}], specialists={panel['decision']} [{panel['status']}]")
             if stop:

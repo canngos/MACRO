@@ -15,13 +15,20 @@ def summarize(run_dir):
     for path in (run_dir / "evaluations").glob("*.json"):
         row = read_json(path)
         results[(row["case_id"], row["order"], row["system"])] = row
-    report = {"mode": manifest["mode"], "is_model_performance": manifest["mode"] == "live",
-              "warning": "OFFLINE FIXTURES ONLY: not evidence of judge reliability" if manifest["mode"] == "offline" else "Pilot development results; not final benchmark estimates",
+    benchmark = manifest.get("policy_version") == "benchmark-policy-v1"
+    final = benchmark and manifest.get("dataset", {}).get("split") == "test"
+    report = {"mode": manifest["mode"], "provider": manifest["config"].get("provider", "openai"),
+              "model": manifest["config"].get("model"), "is_model_performance": manifest["mode"] == "live",
+              "warning": "OFFLINE FIXTURES ONLY: not evidence of judge reliability" if manifest["mode"] == "offline" else
+                         "Benchmark test results; human review scheduled after inference" if final else "Development results; not final benchmark estimates",
               "metrics": compute(cases, refs, results)}
-    if manifest.get("split"):
-        report.update(split=manifest["split"], policy_version=manifest["policy_version"],
-                      warning="Benchmark integration/development results; dataset review and final freeze remain pending. "
-                              + ("OFFLINE FIXTURES ONLY; not model performance." if manifest["mode"] == "offline" else "Not final evaluation."))
+    if benchmark:
+        report["raw_metrics"] = compute(cases, refs, {key: {**value, "decision": value.get("raw_decision", value["decision"])}
+                                                     for key, value in results.items()})
+        report["guardrails"] = {system: {"changed_decisions": sum(bool(r.get("guardrail_changed_decision"))
+                                         for r in results.values() if r["system"] == system),
+                                        "note": "Primary decisions use verified hard constraints. Raw metrics and raw constraint detection are retained."}
+                                for system in ("single", "specialists")}
     calls = [read_json(p) for p in (run_dir / "calls").glob("*.json")]
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     for call in calls:
@@ -33,12 +40,10 @@ def summarize(run_dir):
         "latency_seconds_sum": sum(c.get("latency_seconds", 0) for c in calls),
         "tool_executions": sum(len(c.get("executed_tools", [])) for c in calls),
         "currency_estimate": None, "note": "All retry/tool-followup calls included. Unreported usage is unknown, not zero. No pricing configured."}
-    pricing = manifest["config"].get("pricing")
-    reasoning_counts = [(call.get("usage") or {}).get("completion_tokens_details") or {} for call in calls]
-    reported_reasoning = [details["reasoning_tokens"] for details in reasoning_counts
-                          if type(details.get("reasoning_tokens")) is int and details["reasoning_tokens"] >= 0]
-    report["costs"]["reported_reasoning_tokens"] = sum(reported_reasoning) if reported_reasoning else None
-    report["costs"]["calls_with_reasoning_token_breakdown"] = len(reported_reasoning)
+    local = report["provider"] == "ollama"
+    pricing = None if local else manifest["config"].get("pricing")
+    if local:
+        report["costs"]["note"] = "Local Ollama requests. Tokens and latency are recorded; electricity/hardware costs are not estimated."
     if pricing:
         # Optional verified configuration: uncached input upper estimate; never invent a price.
         for key in ["input_per_million", "output_per_million", "currency", "date", "source"]:
@@ -47,8 +52,20 @@ def summarize(run_dir):
         report["costs"]["currency_estimate"] = usage["prompt_tokens"] * pricing["input_per_million"] / 1e6 + usage["completion_tokens"] * pricing["output_per_million"] / 1e6
         report["costs"]["pricing"] = pricing
         report["costs"]["note"] = "Uncached-input estimate for known usage only; unknown calls omitted and cache discounts not applied."
+    report["costs_by_system"] = {}
+    for system, roles in [("single", {"single"}), ("specialists", {"preference", "attribute", "explanation"})]:
+        selected = [c for c in calls if c.get("role") in roles]
+        totals = {key: sum((c.get("usage") or {}).get(key, 0) for c in selected) for key in usage}
+        report["costs_by_system"][system] = {**totals, "model_calls": len(selected),
+            "calls_without_usage": sum(not c.get("usage") for c in selected),
+            "latency_seconds_sum": sum(c.get("latency_seconds", 0) for c in selected),
+            "retry_attempt_calls": sum('_attempt-' in c['tag'] and int(c['tag'].rsplit('_attempt-', 1)[1]) > 1 for c in selected),
+            "tool_executions": sum(len(c.get("executed_tools", [])) for c in selected),
+            "currency_estimate": None if not pricing else
+                (totals["prompt_tokens"] * pricing["input_per_million"] + totals["completion_tokens"] * pricing["output_per_million"]) / 1e6}
     write_json(run_dir / "summary.json", report)
-    lines = ["# MACRO run report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
+    lines = ["# MACRO evaluation report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
+             f"Provider: {report['provider']}. Model: {report['model']}.", "",
              "| System | Completed | Constraint precision | Constraint recall | Dominance accuracy | Priority alignment | Order stability |",
              "|---|---:|---:|---:|---:|---:|---:|"]
     def rate(x):
@@ -67,7 +84,13 @@ def summarize(run_dir):
               "Original/reversed results are repeated observations; they are not independent samples.",
               "The panel has three initial calls per case/order versus one for the single judge; this does not isolate specialization from additional computation.",
               "", f"Model calls: {len(calls)}. Currency estimate: {report['costs']['currency_estimate']}.",
-              "Benchmark review and final freeze remain pending." if manifest.get("split") else "Live pilot gate remains pending until the user runs the live experiment and reviews its diagnostics."]
+              "Review coverage, raw findings and failures before interpreting accuracy. Human review is a separate validation step."]
+    lines += ["", "## Inference costs", "", "| System | Requests | Input tokens | Output tokens | Summed latency (s) |", "|---|---:|---:|---:|---:|"]
+    for system, cost in report["costs_by_system"].items():
+        lines.append(f"| {system} | {cost['model_calls']} | {cost['prompt_tokens']} | {cost['completion_tokens']} | {cost['latency_seconds_sum']:.2f} |")
+    if benchmark:
+        lines += ["", "Primary accuracy uses the shared hard-constraint guardrail. Constraint precision/recall uses raw judge flags.",
+                  "See raw_metrics in summary.json for accuracy before guardrails, and guardrails for changed-decision counts."]
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     from .html_report import render_report
     render_report(run_dir, report)
