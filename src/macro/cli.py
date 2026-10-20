@@ -32,6 +32,7 @@ def main():
             p.add_argument("--run-id")
             p.add_argument("--max-calls", type=int, help="Required explicit request cap; not a money limit")
             p.add_argument("--retry-uncertain", action="store_true")
+            p.add_argument("--final-readiness", help="Approved experiment-freeze record required for final-test inference")
     summary = sub.add_parser("summarize", help="Rebuild saved reports without API calls")
     summary.add_argument("run_dir")
     args = parser.parse_args()
@@ -61,7 +62,8 @@ def main():
             if args.command == "plan":
                 print(json.dumps(experiment_plan(args.cases, args.limit, config, args.split), indent=2))
             else:
-                run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain, args.split)
+                options = {"final_readiness": args.final_readiness} if args.final_readiness else {}
+                run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain, args.split, **options)
     except (ValueError, AssertionError, FileNotFoundError) as exc:
         parser.exit(1, f"Error: {exc}\n")
 

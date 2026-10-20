@@ -1,0 +1,133 @@
+{
+  "reviewer": "Codex agent",
+  "selection": "First lexicographic case ID in each of nine strata in each split, selected without model outputs",
+  "review_type": "Agent manual recomputation from public profile and source-derived facts; not independent human annotation",
+  "records": [
+    {
+      "split": "dev",
+      "case_id": "case-028cfd0499c6fbcb3856",
+      "agent_manual_verdict": "both_violate",
+      "rationale": "70 and 20 minutes both exceed the 10-minute limit.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-01550f2f569920f6111b",
+      "agent_manual_verdict": "A",
+      "rationale": "45 minutes is allowed; 65 exceeds the inclusive 45-minute limit.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-3db4f55a162ac14754b9",
+      "agent_manual_verdict": "A",
+      "rationale": "25 minutes is allowed; 30 exceeds 25 regardless of B soft advantages.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-0f24bd33bfda1c49947f",
+      "agent_manual_verdict": "B",
+      "rationale": "A contains excluded tomato; B is allowed at the 85-minute boundary.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-0e85e20cdb6056dc122a",
+      "agent_manual_verdict": "tie",
+      "rationale": "Both contain preferred onion and FSA 0.25; speed is inactive.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-060a2a81b7915e7bfd08",
+      "agent_manual_verdict": "A",
+      "rationale": "A preference 1 versus 0.5, FSA 0.75 versus 0.375, and 25 versus 40 minutes dominates.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-136b2a57388a4be5a810",
+      "agent_manual_verdict": "A",
+      "rationale": "Both match onion; FSA 0.75 exceeds 0.625; speed is inactive.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-1d2245d9aebd5aa2cf47",
+      "agent_manual_verdict": "A",
+      "rationale": "Preference favors B, but nutrition-first chooses A at FSA 0.75 versus 0.25.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "dev",
+      "case_id": "case-1b9142dd4a6adcd3daad",
+      "agent_manual_verdict": "insufficient_information",
+      "rationale": "Equal preference 0.5; nutrition favors A and active speed favors B; no priorities.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-01d9d45bc4f24e61013e",
+      "agent_manual_verdict": "both_violate",
+      "rationale": "90 and 30 minutes both exceed 15.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-0c22bfdfe372c8616543",
+      "agent_manual_verdict": "A",
+      "rationale": "A meets 15-minute boundary; B takes 140 and is infeasible.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-0ccc6c60a2dad9f74702",
+      "agent_manual_verdict": "B",
+      "rationale": "A takes 45 over the 40-minute cap; B meets the boundary.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-02632db25e6db920538a",
+      "agent_manual_verdict": "A",
+      "rationale": "B contains excluded mushroom; A is feasible at 130 minutes.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-002ac8c458c27012ebf6",
+      "agent_manual_verdict": "tie",
+      "rationale": "Each contains one of two preferred groups and FSA 0.25; 120 versus 13 minutes is inactive speed.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-024925c9ad1bf94b3c0c",
+      "agent_manual_verdict": "A",
+      "rationale": "Both match two of three preferred groups; A has higher FSA and shorter active duration.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-05ad280bb0f90f5b36da",
+      "agent_manual_verdict": "A",
+      "rationale": "Each matches one of two preferred groups; FSA 0.625 exceeds 0.5; speed inactive.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-03508b5846376f46f964",
+      "agent_manual_verdict": "B",
+      "rationale": "Both match onion; speed-first selects 35-minute B over 160-minute A despite lower FSA.",
+      "agrees_with_saved_reference": true
+    },
+    {
+      "split": "test",
+      "case_id": "case-05af8a05928251437586",
+      "agent_manual_verdict": "insufficient_information",
+      "rationale": "Both match one of two preferences; higher nutrition A conflicts with faster B; no priorities.",
+      "agrees_with_saved_reference": true
+    }
+  ]
+}

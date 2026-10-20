@@ -63,6 +63,15 @@ def llm_settings(config, key, schema):
         if type(config.get("max_tokens")) is not int or config["max_tokens"] <= 0:
             raise ValueError("DeepSeek max_tokens must be a positive integer")
         extra = {"thinking": {"type": mode}}
+        pricing = config.get("pricing")
+        accounting = {}
+        if pricing:
+            from macro.reporting.pricing import validate_pricing
+            validate_pricing(pricing)
+            # AG2 supports only a fixed input/output pair, priced per 1K tokens.
+            # Use peak uncached rates here; reports handle cache discounts and both tiers.
+            accounting["price"] = [pricing["input_per_million"] / 1000,
+                                   pricing["output_per_million"] / 1000]
         if mode == "enabled":
             effort = config.get("reasoning_effort")
             if effort not in ("low", "high", "max"):
@@ -72,6 +81,7 @@ def llm_settings(config, key, schema):
             extra["reasoning_effort"] = effort
         return {
             **common,
+            **accounting,
             "base_url": config.get("base_url", "https://api.deepseek.com"),
             "max_tokens": config["max_tokens"],
             "response_format": {"type": "json_object"},

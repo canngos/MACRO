@@ -1,0 +1,7 @@
+{
+  "status": "not_started",
+  "run_id": "deepseek-final-400-20261020-204705",
+  "reason": "Network access request declined; no final model-generation requests were made.",
+  "recorded_utc": "2026-10-20T17:48:01.493610+00:00",
+  "readiness_sha256": "b1abd7c8a57892881946613c5c0b6dd126520b7ec581742e03f8b9a7e5286cd0"
+}

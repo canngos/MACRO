@@ -1,0 +1,135 @@
+{
+  "purpose": "Readiness evidence, not a human approval or final freeze",
+  "development_run": "results\\deepseek-dev-120-20261020-185704",
+  "development_manifest_sha256": "3e30730605fb49197de2ff45af02053fd88c8044e48a2b183b6423aa309cd38a",
+  "dataset_manifest_sha256": "142c79e7d8fd7ad371e31b9ad5f4f1ab223e404064bd8e908d319341c47f7af3",
+  "scope": "400 factual-base cases, both candidate orders; no explanation variants",
+  "integrity": {
+    "policy_labels_recomputed": true,
+    "order_swap_reference_checks": true,
+    "factual_template_checks": true,
+    "recipe_overlap": 0,
+    "profile_overlap": 0,
+    "case_overlap": 0,
+    "manual_review": "pending",
+    "explanation_length_leakage_check": "pending",
+    "surface_classifier_check": "pending"
+  },
+  "source_correspondence": {
+    "recipes_checked": 1040,
+    "errors": [],
+    "source_sha256": "795fda95e2dac442a1f5a211a2fce9ab7f6a21ad11cb35babd2f8e3580bdd1e6",
+    "human_semantic_review": "pending"
+  },
+  "development": {
+    "code_changes_since_run": [
+      "cli.py",
+      "evaluation/runner.py",
+      "evaluation/readiness.py"
+    ],
+    "configuration_matches": true,
+    "evaluations": {
+      "single": {
+        "correct": 239,
+        "total": 240,
+        "rate": 0.9958333333333333
+      },
+      "specialists": {
+        "correct": 240,
+        "total": 240,
+        "rate": 1.0
+      }
+    },
+    "primary_accuracy": {
+      "single": {
+        "correct": 237,
+        "total": 240,
+        "rate": 0.9875
+      },
+      "specialists": {
+        "correct": 240,
+        "total": 240,
+        "rate": 1.0
+      }
+    },
+    "raw_accuracy": {
+      "single": {
+        "correct": 235,
+        "total": 240,
+        "rate": 0.9791666666666666
+      },
+      "specialists": {
+        "correct": 240,
+        "total": 240,
+        "rate": 1.0
+      }
+    },
+    "technical_failures": [
+      {
+        "file": "case-9c9ff1905784eef20d32_original_single.json",
+        "status": "technical_failure"
+      }
+    ]
+  },
+  "surface_diagnostics": {
+    "verdict": {
+      "method": "Development-fitted decision stump on six explanation-length features only",
+      "test_accuracy": 0.3225,
+      "test_majority_baseline": 0.25,
+      "model": {
+        "feature": "character_difference",
+        "threshold": 1,
+        "lower_label": "tie",
+        "upper_label": "B"
+      }
+    },
+    "case_type": {
+      "method": "Development-fitted decision stump on six explanation-length features only",
+      "test_accuracy": 0.28,
+      "test_majority_baseline": 0.2,
+      "model": {
+        "feature": "character_difference",
+        "threshold": 1,
+        "lower_label": "control_tie",
+        "upper_label": "dominance"
+      }
+    },
+    "fact_masked_surface": {
+      "dev_unique_templates": 1,
+      "test_unique_templates": 1,
+      "templates_match_between_splits": true,
+      "interpretation": "After masking duration, ingredient list and nutrition value, all base explanations have identical style.",
+      "verdict_majority_classifier_accuracy": 0.25,
+      "case_type_majority_classifier_accuracy": 0.2
+    },
+    "dev_total_characters_by_category": {
+      "tradeoff": {
+        "min": 319,
+        "max": 349,
+        "mean": 332.5
+      },
+      "dominance": {
+        "min": 322,
+        "max": 358,
+        "mean": 331.3333333333333
+      },
+      "both_violate": {
+        "min": 319,
+        "max": 349,
+        "mean": 328.5416666666667
+      },
+      "constraint": {
+        "min": 320,
+        "max": 340,
+        "mean": 330.8333333333333
+      },
+      "control_tie": {
+        "min": 320,
+        "max": 352,
+        "mean": 328.8333333333333
+      }
+    },
+    "interpretation": "Diagnostic only, not an automatic pass or a comprehensive leakage test. Lengths can encode intended factual content such as ingredient counts. No test model outputs were used and no judge settings were tuned. The study owner must review these diagnostics and accept or resolve any shortcut concerns before freeze."
+  },
+  "readiness": "pending human/source review, leakage-diagnostic review, and freeze; no model calls made"
+}

@@ -50,8 +50,10 @@ provider is selected in the environment.
 Set `$taskPython` to your installed environment's Python executable before using these
 commands. `configs/deepseek-thinking-pilot.json` enables thinking instead. Both modes
 have offline SDK protocol coverage; changed prompts and schemas require fresh live
-development checks. Pricing is unset, so recorded usage has no monetary estimate.
-AutoGen's unknown-model zero cost is not an actual price.
+development checks. Both DeepSeek configurations include dated Flash pricing. Reports
+show cache-aware off-peak/peak cost ranges for known usage, with a conservative peak
+estimate; AutoGen uses peak uncached rates for its simpler local estimate. See the
+[pricing explanation](DEEPSEEK_MIGRATION.md#configured-deepseek-flash-pricing).
 
 The repaired merge uses `benchmark-assessment-v2` (positive `duration_minutes` findings)
 and `benchmark-judges-v2`. New runs retain the merged shared constraint guardrail and
@@ -123,8 +125,9 @@ The 400 final-test cases can be previewed without inference:
 .\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/test --limit 400
 ```
 
-Final-test inference is disabled while dataset review, leakage checks, and freeze remain
-pending. Use development cases to settle the provider, prompts, and configuration first.
+Final-test inference requires an approved, hash-matching readiness record. See
+[the readiness review](readiness/deepseek-final-400/REVIEW.md) and the
+[DeepSeek manual](DEEPSEEK_MIGRATION.md#8-the-final-400-case-evaluation).
 
 | Option | Meaning |
 |---|---|
@@ -166,7 +169,7 @@ The defaults create **120 development cases and 400 final test cases** under
 for coverage and pending reviews. Gold references and source mappings are in its
 `private/` folder; only the split's `cases.jsonl` belongs in judge input.
 The runner now supports this profile schema through explicit split selection; see
-[Section 9.1 of the migration guide](DEEPSEEK_MIGRATION.md#91-benchmark-integration-and-checks--20-october-2026).
+[the DeepSeek experiment manual](DEEPSEEK_MIGRATION.md).
 Preview the 120 development cases without API calls:
 
 ```powershell
@@ -174,7 +177,7 @@ Preview the 120 development cases without API calls:
 ```
 
 `--split test --limit 400` supports a no-cost preview. Paid final-test execution
-is disabled while manual review, leakage checks and final freeze remain pending.
+requires the approved `--final-readiness` record; it is rejected when the record is missing or artifacts changed.
 Use the development split for smoke runs and configuration choices.
 Each of the five case categories has 24 development and 80 final-test cases. Category
 balance is distinct from verdict-label balance. The earlier 600-test-case draft remains

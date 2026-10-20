@@ -14,6 +14,7 @@ from macro.ai_agents.prompts import BENCHMARK_PROMPT_VERSION, visible_case
 from macro.ai_agents.schemas import AssessmentValidationError, response_schema
 from macro.ai_agents.schemas import SCHEMAS, SCHEMA_VERSION
 from .inputs import load_inputs
+from .readiness import verify_final_readiness
 
 
 class BudgetExceeded(RuntimeError):
@@ -68,12 +69,14 @@ def experiment_plan(folder, limit, config, split=None):
             "base_url": config.get("base_url"), "note": "Plan only; no model initialized or API called."}
 
 
-def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None):
+def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None, final_readiness=None):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
     selected_split = split or Path(folder).name
-    if selected_split == "test":
-        raise ValueError("Final test execution is disabled while benchmark review/freeze remains pending. Use --split dev for development.")
     config = config if "provider" in config else provider_config(config)
+    if selected_split == "test":
+        verify_final_readiness(folder, config, final_readiness, source_code_hashes())
+        if limit not in (None, 400):
+            raise ValueError('Final frozen evaluation must include all 400 base cases')
     if config["provider"] == "deepinfra":
         deepinfra_api_key()
     elif config["provider"] == "openai":
@@ -83,15 +86,18 @@ def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain
     elif config["provider"] != "ollama":
         raise ValueError("Unsupported LLM provider")
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
-                limit, run_id, max_calls, retry_uncertain, split)
+                limit, run_id, max_calls, retry_uncertain, split, final_readiness)
 
 
-def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None):
+def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None, final_readiness=None):
     if type(max_calls) is not int or max_calls < 0:
         raise ValueError("Set an explicit nonnegative max_calls request cap")
     cases, refs, dataset = load_inputs(folder, limit, config, split)
+    final_evidence = None
     if mode == "live" and dataset["split"] == "test":
-        raise ValueError("Final test execution is disabled while benchmark review/freeze remains pending")
+        final_evidence = verify_final_readiness(folder, config, final_readiness, source_code_hashes())
+        if len(cases) != 400:
+            raise ValueError('Final frozen evaluation must include all 400 base cases')
     if mode == "live" and max_calls < len(cases) * 8:
         raise ValueError(f"max-calls must cover at least {len(cases) * 8} initial requests; add room for retries/tools")
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
@@ -101,13 +107,15 @@ def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_ca
     source_hashes = source_code_hashes()
     identity = {"mode": mode, "config": config, "case_digest": digest(cases), "reference_digest": digest(refs),
                 "dataset": dataset, "split": dataset["split"],
-                "evaluation_status": "development_only_not_final" if dataset["split"] == "dev" else "offline_fixture_not_final",
+                "evaluation_status": "final_frozen" if final_evidence else "development_only_not_final" if dataset["split"] == "dev" else "offline_fixture_not_final",
                 "policy_version": dataset["policy_version"],
                 "aggregation_version": AGGREGATION_VERSION,
                 "prompt_version": BENCHMARK_PROMPT_VERSION, "code_hashes": source_hashes,
                 "schema_version": SCHEMA_VERSION,
                 "wire_schema_hashes": {role: digest(response_schema(role, cases[0])) for role in SCHEMAS},
                 "schema_hashes": {k: digest(v.model_json_schema()) for k, v in SCHEMAS.items()}}
+    if final_evidence:
+        identity['final_readiness'] = final_evidence
     manifest_path = run_dir / "manifest.json"
     if manifest_path.exists():
         old = read_json(manifest_path)
@@ -115,7 +123,7 @@ def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_ca
             raise ValueError("Resume configuration, cases, prompts, schemas or code changed. Use a new run ID.")
     else:
         write_json(manifest_path, {**identity, "identity_hash": digest(identity), "started_utc": datetime.now(timezone.utc).isoformat(),
-                                  "concurrency": 1, "live_gate_passed": False})
+                                  "concurrency": 1, "live_gate_passed": bool(final_evidence)})
         write_jsonl(run_dir / "cases.snapshot.jsonl", cases)
         write_jsonl(run_dir / "references.snapshot.private.jsonl", refs)
     for name in ["roles", "evaluations", "calls"]:

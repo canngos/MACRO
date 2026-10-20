@@ -1,0 +1,19 @@
+{
+  "cases": 400,
+  "dataset": {
+    "version": "benchmark-v2",
+    "split": "test",
+    "status": "draft_not_frozen",
+    "policy_version": "benchmark-policy-v1",
+    "human_review": "pending"
+  },
+  "orders": 2,
+  "single_initial_calls": 800,
+  "specialist_initial_calls": 2400,
+  "total_initial_calls": 3200,
+  "maximum_with_all_retries_and_tool_rounds": 19200,
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "base_url": "https://api.deepseek.com",
+  "note": "Plan only; no model initialized or API called."
+}

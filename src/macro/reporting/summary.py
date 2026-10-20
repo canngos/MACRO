@@ -4,6 +4,7 @@ from pathlib import Path
 
 from macro.shared.io import read_json, read_jsonl, write_json
 from macro.evaluation.metrics import compute
+from .pricing import estimate
 
 
 def summarize(run_dir):
@@ -25,6 +26,15 @@ def summarize(run_dir):
               "metrics": compute(cases, refs, results)}
     if benchmark:
         report.update(split=split, policy_version=manifest["policy_version"])
+    if final:
+        record = manifest.get('final_readiness', {}).get('record', {})
+        report['final_readiness'] = {
+            'sha256': manifest.get('final_readiness', {}).get('sha256'),
+            'scope': record.get('scope'), 'review_kind': record.get('review_kind'),
+            'limitations': record.get('limitations', []),
+        }
+        if record.get('review_kind') == 'agent_source_review':
+            report['warning'] += '; source review performed by an agent, not an independent human annotation study.'
     guarded = benchmark and any("verified_constraints" in r for r in results.values())
     if guarded:
         report["raw_metrics"] = compute(cases, refs, {key: {**value, "decision": value.get("raw_decision", value["decision"])}
@@ -54,13 +64,8 @@ def summarize(run_dir):
     if local:
         report["costs"]["note"] = "Local Ollama requests. Tokens and latency are recorded; electricity/hardware costs are not estimated."
     if pricing:
-        # Optional verified configuration: uncached input upper estimate; never invent a price.
-        for key in ["input_per_million", "output_per_million", "currency", "date", "source"]:
-            if key not in pricing:
-                raise ValueError("Pricing must include rates, currency, date and official source")
-        report["costs"]["currency_estimate"] = usage["prompt_tokens"] * pricing["input_per_million"] / 1e6 + usage["completion_tokens"] * pricing["output_per_million"] / 1e6
+        report["costs"].update(estimate(calls, pricing))
         report["costs"]["pricing"] = pricing
-        report["costs"]["note"] = "Uncached-input estimate for known usage only; unknown calls omitted and cache discounts not applied."
     report["costs_by_system"] = {}
     for system, roles in [("single", {"single"}), ("specialists", {"preference", "attribute", "explanation"})]:
         selected = [c for c in calls if c.get("role") in roles]
@@ -70,13 +75,15 @@ def summarize(run_dir):
             "latency_seconds_sum": sum(c.get("latency_seconds", 0) for c in selected),
             "retry_attempt_calls": sum('_attempt-' in c['tag'] and int(c['tag'].rsplit('_attempt-', 1)[1]) > 1 for c in selected),
             "tool_executions": sum(len(c.get("executed_tools", [])) for c in selected),
-            "currency_estimate": None if not pricing else
-                (totals["prompt_tokens"] * pricing["input_per_million"] + totals["completion_tokens"] * pricing["output_per_million"]) / 1e6}
+            **estimate(selected, pricing)}
     write_json(run_dir / "summary.json", report)
     lines = ["# MACRO evaluation report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
              f"Provider: {report['provider']}. Model: {report['model']}.", "",
              "| System | Completed | Constraint precision | Constraint recall | Dominance accuracy | Priority alignment | Order stability |",
              "|---|---:|---:|---:|---:|---:|---:|"]
+    if final:
+        lines[7:7] = ['', 'Final readiness record: ' + str(report['final_readiness']['sha256']), '',
+                      'Recorded limitations: ' + '; '.join(report['final_readiness']['limitations']), '']
     def rate(x):
         return "n/a" if x is None else f"{x:.3f}"
     for system, m in report["metrics"].items():
@@ -97,6 +104,13 @@ def summarize(run_dir):
     lines += ["", "## Inference costs", "", "| System | Requests | Input tokens | Output tokens | Summed latency (s) |", "|---|---:|---:|---:|---:|"]
     for system, cost in report["costs_by_system"].items():
         lines.append(f"| {system} | {cost['model_calls']} | {cost['prompt_tokens']} | {cost['completion_tokens']} | {cost['latency_seconds_sum']:.2f} |")
+    if pricing:
+        lines += ["", "Pricing: " + pricing["currency"] + "; rate-card date: " + pricing["date"] + ".",
+                  "Source: " + pricing["source"], "", report["costs"]["note"]]
+        if "currency_estimate_lower" in report["costs"]:
+            lines += ["", "| System | Known-usage cost range (USD) | Peak estimate (USD) |", "|---|---:|---:|"]
+            for system, cost in report["costs_by_system"].items():
+                lines.append(f"| {system} | {cost['currency_estimate_lower']:.6f} - {cost['currency_estimate_upper']:.6f} | {cost['currency_estimate']:.6f} |")
     if guarded:
         lines += ["", "Primary accuracy uses the shared hard-constraint guardrail. Constraint precision/recall uses raw judge flags.",
                   "See raw_metrics in summary.json for accuracy before guardrails, and guardrails for changed-decision counts."]

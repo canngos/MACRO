@@ -1,0 +1,129 @@
+{
+  "status": "approved",
+  "approved_utc": "2026-10-20T17:46:46.955270+00:00",
+  "scope": "400_factual_base_cases_both_orders",
+  "review_kind": "agent_source_review",
+  "independent_human_annotation": "not_performed",
+  "dataset_manifest_sha256": "142c79e7d8fd7ad371e31b9ad5f4f1ab223e404064bd8e908d319341c47f7af3",
+  "dataset_artifact_hashes": {
+    "dev/cases.jsonl": "fe4c02bcf6b02048f4f0dcd0d3a0a225f6965076ce6a2702984d83e61d8294ca",
+    "private/dev.references.jsonl": "485c008d404d682b17ed2b879126a0c011063df105253e94dab10a493935bce2",
+    "test/cases.jsonl": "6863a8694593130917928bba554d204b907e1ab385feca83d9cd521a13975f7b",
+    "private/test.references.jsonl": "f143608e48b690c756b5e932a37603802786b7f3dd99aa231fed38436fc03976",
+    "private/source_map.json": "24cc74d48a4c009ec315153295fdb62463dd9d89c5895a64f78791d9d0d1ee20"
+  },
+  "config_path": "configs/deepseek-final-400.json",
+  "config_digest": "90e5dcb9c0091e7589b6cb1dac66445b0a7ce8a8526138c5be6a98fe9d970157",
+  "source_code_hashes": {
+    "__init__.py": "1df0425ff5e60fedc6b5ea49af40d93a9e2cc9c329e3b7b2548871f449005fa8",
+    "__main__.py": "c13eb66970ae37b8b044f428b309e67868814b90a8bb408806f3316ce4dfbc5b",
+    "ai_agents/__init__.py": "e2fb83d36cb033cc57050facc9fae91b8ba8664507a3670113fe8bf0b92f10d6",
+    "ai_agents/agents.py": "9f5e31dbdfa3c92fc90af547ba688daadc5138f3ee50357f086abe802086da80",
+    "ai_agents/benchmark_schemas.py": "0837840184645c8206c0a53592d1ea6cba5410998f5d476e31e00c0f0959f31d",
+    "ai_agents/prompts.py": "b16c79c12d503647da1c4c0fcc6b843763db98f83df3962056b644badaa4c466",
+    "ai_agents/schemas.py": "9296ce870f887cd7011b9444538217bfa370f28ce087ad362cb3fc786d0ea13e",
+    "ai_agents/tools.py": "5fd387b1704384a91cc064384a70293c91b4e67011b7293ca95eb573162f2ca0",
+    "cli.py": "937e365d92fa9d0d4d68a41a572f77306ad8b35356b3c579281203ea89f4cc1f",
+    "coordinator/__init__.py": "9bd02ab6e585b5a76349d15dc09405ff384fd8d47a50a09421fe95bd4feb2b0a",
+    "coordinator/aggregation.py": "1c8e71420cc16466648d9853ea1b2576fa0a7b8e2bd263ae58a732d14520c331",
+    "evaluate_case_generation/__init__.py": "d1a6c0de939d0836c3d7750f895c8a7d13a9cc1067bb93b1dd37b874d6bcd9c2",
+    "evaluate_case_generation/benchmark.py": "31083a41f6757d76d5aa6a016e71f5f10b2f75bd5216f3bbbec108ba3a0f1c57",
+    "evaluate_case_generation/dataset.py": "837b974913171074e6fdb0df24d2857146ddc800c1c1528a8018dd18ab19faa9",
+    "evaluation/__init__.py": "677c32cdebea0c0889ede3b18dc90b7420e2682df9f1bc113040efaf8e53c0ed",
+    "evaluation/inputs.py": "58a2a21054dd93f6265220278cf22e903e572e29ce81727016bc0111bf9abf95",
+    "evaluation/metrics.py": "fc9c61a84b042160f1b77e007aa4fe26268594da6c76b3f6f4dafb670f0cd412",
+    "evaluation/readiness.py": "ff7854c748a75a0856861158d7f0e7f9910904f6c0688da2bde3837c390c423c",
+    "evaluation/runner.py": "9cd5a611c297c81dbd8aa21936a7d0a7db3082d88779de7c7d05a8d7331fe369",
+    "reporting/__init__.py": "dcd6a51d21fe36f4ab1ead9f3425a3aad0c9ed327ffb6d80bd8c790e072d4583",
+    "reporting/html_report.py": "8178aa7e4d3a74555052c990506f308ffb9543202b42967ce92773df228a5c8f",
+    "reporting/pricing.py": "f5645fbb3488dbea0cd549407e155fde441c4f02ee03535defe644c2dc84c8b3",
+    "reporting/summary.py": "10b1cb68a5518414f31b508e416a79184e3421e6e2e9d143d108081a915699e4",
+    "shared/__init__.py": "9ef10dea3906b21389d9d36a32244610e461df69a18ad0d6654a5701e3bf0d49",
+    "shared/benchmark_policy.py": "38076c1bc79b6b35c34ac8fc91d9e6c9a314a9c4834bcfd25393bd4cd3c01763",
+    "shared/comparison.py": "0c3ba3fc9fbc0e41dfac5babff065b1d9b095ed4701c85f6f236fe06bb870b2d",
+    "shared/config.py": "4016c459bc3c7433d8f8aa9c45bbe27a53b5ac9e79d45efc488eb6e811cb209e",
+    "shared/io.py": "cb026f88570d5ac061050eb5341959336480e21e41c21db409804648c9ed8b10"
+  },
+  "development_run": {
+    "manifest_path": "results\\deepseek-dev-120-20261020-185704\\manifest.json",
+    "manifest_sha256": "3e30730605fb49197de2ff45af02053fd88c8044e48a2b183b6423aa309cd38a"
+  },
+  "automated_checks_path": "readiness\\deepseek-final-400\\checks.json",
+  "automated_checks_sha256": "cd12a2bbdd2ba8da7b82a66b053b4b2c3e526043d046efffaab7a0c4ff777f0a",
+  "limitations": [
+    "Source review was performed by Codex; independent human annotation was not performed.",
+    "Length-only verdict prediction is 32.25% versus a 25% majority baseline; no claim of eliminating length confounding.",
+    "Only factual base explanations are evaluated; no claim of robustness to explanation variants.",
+    "Nutrition and duration are supplied dataset proxies; upstream publisher truth and hidden ingredients are not certified.",
+    "Primary decisions include a shared hard-constraint guardrail; raw decisions and failures remain reported.",
+    "The provider model is a versioned-service alias; requested/returned model identifiers and timestamps are recorded."
+  ],
+  "runtime": {
+    "python_executable": "C:\\Users\\shane\\Documents\\NLP\\group_project\\venv\\Scripts\\python.exe",
+    "python_version": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
+    "packages": {
+      "autogen": "0.14.1",
+      "openai": "2.44.0",
+      "pydantic": "2.13.5",
+      "python-dotenv": "1.2.4"
+    }
+  },
+  "git_revision": "c48b6f155ae8a4308782b45b3b6d4aadfd9e110a",
+  "working_tree_has_uncommitted_changes": true,
+  "offline_verification": {
+    "tests": 107,
+    "result": "passed",
+    "log_path": "readiness\\deepseek-final-400\\offline-tests.log"
+  },
+  "source_review": {
+    "status": "complete",
+    "reviewer": "Codex agent",
+    "review_kind": "agent_review_not_human_annotation",
+    "evidence_path": "readiness\\deepseek-final-400\\SOURCE_REVIEW.md",
+    "evidence_sha256": "79b5d18b5739db5562797a3a46c8e7b00c1ad3267284ed2b06ed15e1e22d9f49"
+  },
+  "leakage_review": {
+    "status": "accepted_with_limitations",
+    "reviewer": "Codex agent",
+    "review_kind": "agent_review_not_human_annotation",
+    "evidence_path": "readiness\\deepseek-final-400\\LEAKAGE_AND_SCOPE_REVIEW.md",
+    "evidence_sha256": "f242b520e973441a979c33bf8910346fafd4cb3d9cdf9bc80cca30414682863d"
+  },
+  "development_review": {
+    "status": "complete",
+    "reviewer": "Codex agent",
+    "review_kind": "agent_review_not_human_annotation",
+    "evidence_path": "readiness\\deepseek-final-400\\DEVELOPMENT_REVIEW.md",
+    "evidence_sha256": "2fcd878bd7e4c05c246b3e7bf7cd53573209606c0daf052b082c65920c5675b9"
+  },
+  "supporting_artifacts": [
+    {
+      "path": "readiness\\deepseek-final-400\\ingredient-review-inventory.json",
+      "sha256": "0613929aaa22354f76f736c6806b044517e448c04487aace6824ed585aa20d97"
+    },
+    {
+      "path": "readiness\\deepseek-final-400\\manual-case-review.json",
+      "sha256": "82c6ca5f794088009454b1bde718989796c1ef91e14a51b4b1d96f17a1d934c0"
+    },
+    {
+      "path": "readiness\\deepseek-final-400\\offline-tests.log",
+      "sha256": "6909dce62f5774c4d44f10c0def87bd14c0b822da2bc9f32b453980a984217c2"
+    },
+    {
+      "path": "results\\deepseek-dev-120-20261020-185704\\report.html",
+      "sha256": "70cd32119b4eca93bd90cace7210e797c8a355fc6727055e53a791840b8a748a"
+    },
+    {
+      "path": "results\\deepseek-dev-120-20261020-185704\\summary.json",
+      "sha256": "80097af48442113c34ea28a26098b38ee3a0806756f23b396a87f32c29101cf1"
+    },
+    {
+      "path": "scripts\\check_final_readiness.py",
+      "sha256": "bbd31737d1627c688372dbe94deda950c639c01377a1d7a932e9f3e8a96abaff"
+    },
+    {
+      "path": "scripts\\launch_final_validation.py",
+      "sha256": "bfc79374afff7b22078b317031dd9e097a54ae736d425b4fed72cc08d0d2bec0"
+    }
+  ]
+}

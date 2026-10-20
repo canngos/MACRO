@@ -197,15 +197,29 @@ def render_report(run_dir, report=None):
         parts.append(table(["System", "Category", "Correct / planned", "Accuracy"], rows))
     parts.append('<p class="muted">Order stability means the same recipe or outcome after swapping A/B; repeated unresolved outcomes can be stable and incorrect. Order variants are repeated observations, not independent cases.</p>')
     parts.append(f'<p>Summed API latency: {cost["latency_seconds_sum"]:.2f} seconds · Requests without usage: {h(cost["calls_without_usage"])} · Tool executions: {h(cost["tool_executions"])} · Currency estimate: {h(cost["currency_estimate"])}</p>')
+    if cost.get("pricing"):
+        pricing = cost["pricing"]
+        parts.append(f'<p>Pricing: {h(pricing["currency"])} · Rate-card date: {h(pricing["date"])} · Source: {h(pricing["source"])}</p>')
+        parts.append(f'<p class="muted">{h(cost["note"])}</p>')
+    if "currency_estimate_lower" in cost:
+        parts.append(f'<p>Known-usage cost range (USD): {cost["currency_estimate_lower"]:.6f}–{cost["currency_estimate_upper"]:.6f}. Peak estimate (USD): {cost["currency_estimate"]:.6f}.</p>')
     if report.get("costs_by_system"):
         parts.append(table(["System", "Requests", "Input tokens", "Output tokens", "Summed latency (s)"],
             [[h(s), h(c["model_calls"]), h(c["prompt_tokens"]), h(c["completion_tokens"]), h(round(c["latency_seconds_sum"], 2))]
              for s, c in report["costs_by_system"].items()]))
+        if "currency_estimate_lower" in cost:
+            parts.append(table(["System", "Known-usage cost range (USD)", "Peak estimate (USD)"],
+                [[h(s), h(f'{c["currency_estimate_lower"]:.6f}–{c["currency_estimate_upper"]:.6f}'),
+                  h(f'{c["currency_estimate"]:.6f}')] for s, c in report["costs_by_system"].items()]))
     if report.get("raw_metrics"):
         parts.append('<p>Primary decisions use the shared hard-constraint guardrail. Constraint precision/recall uses raw judge findings.</p>')
         parts.append(table(["System", "Correct before guardrail", "Decisions changed by guardrail"],
             [[h(s), h(str(sum(x["correct"] for x in m["accuracy_by_type"].values())) + '/' + str(sum(x["total"] for x in m["accuracy_by_type"].values()))),
               h(report["guardrails"][s]["changed_decisions"])] for s, m in report["raw_metrics"].items()]))
+    if report.get('final_readiness'):
+        readiness = report['final_readiness']
+        parts.append('<p>Frozen readiness record: ' + h(readiness['sha256']) + '</p>')
+        parts.append('<p>Recorded limitations: ' + h('; '.join(readiness.get('limitations', []))) + '</p>')
     parts.append('<p><a href="summary.json">Full metrics JSON</a> · <a href="report.md">Markdown summary</a></p></section>')
     parts.append('<nav class="case-nav" aria-label="Cases">' + ''.join(f'<a href="#case-{i}">Case {i + 1}</a>' for i in range(len(cases))) + '</nav>')
     for i, original in enumerate(cases):
