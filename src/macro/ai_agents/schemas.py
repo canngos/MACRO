@@ -77,6 +77,24 @@ SCHEMAS = {"single": SingleAssessment, "preference": PreferenceAssessment,
            "attribute": AttributeAssessment, "explanation": ExplanationAssessment}
 
 
+def is_benchmark(evidence):
+    return bool(evidence and "objectives" in evidence.get("profile", {}))
+
+
+def schemas_for(evidence=None):
+    if is_benchmark(evidence):
+        from .benchmark_schemas import SCHEMAS as benchmark_schemas
+        return benchmark_schemas
+    return SCHEMAS
+
+
+def schema_version(evidence=None):
+    if is_benchmark(evidence):
+        from .benchmark_schemas import VERSION
+        return VERSION
+    return SCHEMA_VERSION
+
+
 def assessment_groups(role):
     return ["preferences", "attributes", "explanations"] if role == "single" else ["findings"]
 
@@ -96,7 +114,7 @@ def evidence_pointers(evidence):
 
 def response_schema(role, evidence=None):
     """Wire schema requires both candidate keys; saved assessments retain the list format."""
-    schema = SCHEMAS[role].model_json_schema()
+    schema = schemas_for(evidence)[role].model_json_schema()
     for key in assessment_groups(role):
         finding_schema = schema["properties"][key]["items"]
         schema["properties"][key] = {
@@ -162,12 +180,18 @@ def validate_assessment(role, raw, evidence):
     if errors:
         raise AssessmentValidationError(errors, raw)
     try:
-        parsed = SCHEMAS[role].model_validate(value)
+        parsed = schemas_for(evidence)[role].model_validate(value)
     except ValidationError as exc:
         errors = [{"code": error["type"], "field": "/" + "/".join(map(str, error["loc"])),
                    "message": error["msg"]} for error in exc.errors(include_input=False, include_context=False, include_url=False)]
         raise AssessmentValidationError(errors, raw) from None
     result = parsed.model_dump()
+    if is_benchmark(evidence) and role in ("single", "preference"):
+        group = result["preferences" if role == "single" else "findings"]
+        active = "preference" in result["objectives"]
+        if any((f["preference_score"] is not None) != active for f in group) or ((result["preference_comparison"] is not None) != active):
+            errors.append({"code": "inactive_objective", "field": "/preference_comparison",
+                           "message": "Preference scores and comparison must be null exactly when preference is inactive."})
     for key in assessment_groups(role):
         group = result[key]
         if len(group) != 2 or {f["candidate"] for f in group} != {"A", "B"}:

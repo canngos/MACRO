@@ -12,6 +12,7 @@ from macro.ai_agents.prompts import visible_case
 LABELS = {"single": "Single judge", "preference": "Preference judge",
           "attribute": "Attribute judge", "explanation": "Explanation judge"}
 FIELDS = {"preference_score": "Preference score", "feasible": "Feasible",
+          "speed_score": "Speed score (negative minutes)",
           "violations": "Constraint violations", "nutrition_score": "Nutrition score",
           "supported": "Explanation supported", "relevant_tradeoffs_disclosed": "Trade-offs disclosed",
           "issues": "Explanation issues"}
@@ -107,8 +108,9 @@ def diagnostic_notes(assessment, case):
         if slot not in case["recommendations"] or "violations" not in finding:
             continue
         recipe = next(r for r in case["candidate_pool"] if r["id"] == case["recommendations"][slot]["recipe_id"])
-        if "duration" in finding["violations"] and recipe["duration_minutes"] <= case["profile"]["max_duration_minutes"] + 1e-9:
-            notes.append(f"{slot}: reported a duration violation, but {recipe['duration_minutes']} minutes is within the {case['profile']['max_duration_minutes']}-minute limit.")
+        limit = case["profile"].get("hard_max_duration_minutes", case["profile"].get("max_duration_minutes"))
+        if "duration" in finding["violations"] and (limit is None or recipe["duration_minutes"] <= limit + 1e-9):
+            notes.append(f"{slot}: reported a duration violation, but the supplied duration satisfies the hard limit ({limit}).")
     return notes
 
 
@@ -121,7 +123,7 @@ def role_card(record, role, case, prefix):
     notes = diagnostic_notes(assessment, case)
     if notes:
         parts.append('<div class="alert"><strong>Report diagnostics</strong><ul>' + ''.join(f'<li>{h(x)}</li>' for x in notes) + '</ul><small>These checks do not change the judge’s response or recorded outcome.</small></div>')
-    for key in ["decision", "preference_comparison", "nutrition_comparison", "priority"]:
+    for key in ["decision", "preference_comparison", "nutrition_comparison", "speed_comparison", "priority", "objectives", "priorities"]:
         if key in assessment:
             parts.append(f'<span class="badge">{h(key.replace("_", " "))}: {h(assessment[key])}</span>')
     if assessment.get("rationale"):
@@ -165,7 +167,7 @@ def render_report(run_dir, report=None):
     cost = report["costs"]
     parts = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
              '<title>MACRO · ' + h(run_dir.name) + '</title><style>' + CSS + '</style></head><body><main>',
-             '<div class="eyebrow">MACRO / Pilot evaluation</div><h1>Judge decision report</h1>',
+             '<div class="eyebrow">MACRO / ' + ('Benchmark development' if manifest.get("split") else 'Pilot evaluation') + '</div><h1>Judge decision report</h1>',
              f'<p class="muted">Run {h(run_dir.name)} · {h(manifest["mode"])} · {h(manifest["config"].get("model"))}</p>',
              '<p class="muted">' + h(report["warning"]) + '</p><div class="stats">']
     for label, value in [("Cases", len(cases)), ("API requests", cost["model_calls"]), ("Total tokens", f'{cost["total_tokens"]:,}'), ("Retry requests", cost["retry_attempt_calls"])]:
@@ -180,11 +182,19 @@ def render_report(run_dir, report=None):
         stable = metric["candidate_order_stability"]
         overview.append([h("Single judge" if system == "single" else "Specialist panel"),
                          h(f'{coverage["correct"]}/{coverage["total"]}'), h(f'{correct}/{total}'),
-                         h(metric["outcomes"].get("unresolved", 0)), h(f'{stable["correct"]}/{stable["total"]}'),
+                         h(metric["unresolved_frequency"]["count"]), h(f'{stable["correct"]}/{stable["total"]}'),
                          h(json.dumps(metric["diagnostic_counts"])),
                          h(f'{metric["comparison_consistency"]["evaluations_with_warnings"]}/{metric["comparison_consistency"]["checked_evaluations"]}'
                            if metric.get("comparison_consistency", {}).get("checked_evaluations") else "Not recorded")])
     parts.append(table(["System", "Completed evaluations", "Correct decisions", "Unresolved", "Stable order pairs", "Failures", "Comparison warnings / checked"], overview))
+    if manifest.get("split"):
+        parts.append(f'<p>Split: {h(manifest["split"])} · Policy: {h(manifest["policy_version"])} · Prompt: {h(manifest["prompt_version"])} · Schema: {h(manifest["schema_version"])}</p>')
+        rows = []
+        for system, metric in report["metrics"].items():
+            for category, counts in metric["accuracy_by_type"].items():
+                rows.append([h(system), h(category), h(f'{counts["correct"]}/{counts["total"]}'), h(counts["rate"])])
+            rows.append([h(system), 'Macro category accuracy', '', h(metric["macro_category_accuracy"])])
+        parts.append(table(["System", "Category", "Correct / planned", "Accuracy"], rows))
     parts.append('<p class="muted">Order stability means the same recipe or outcome after swapping A/B; repeated unresolved outcomes can be stable and incorrect. Order variants are repeated observations, not independent cases.</p>')
     parts.append(f'<p>Summed API latency: {cost["latency_seconds_sum"]:.2f} seconds · Requests without usage: {h(cost["calls_without_usage"])} · Tool executions: {h(cost["tool_executions"])} · Currency estimate: {h(cost["currency_estimate"])}</p>')
     parts.append('<p><a href="summary.json">Full metrics JSON</a> · <a href="report.md">Markdown summary</a></p></section>')
@@ -199,7 +209,7 @@ def render_report(run_dir, report=None):
             for slot in ["A", "B"]:
                 recommendation = case["recommendations"][slot]
                 recipe = next(r for r in case["candidate_pool"] if r["id"] == recommendation["recipe_id"])
-                parts.append(f'<div class="candidate"><h4>{slot} · {h(recipe["title"])}</h4><p class="muted">Recipe {h(recipe["id"])}</p><p>{h(recipe["duration_minutes"])} minutes · Nutrition {h(recipe["nutrition_score"])}</p><p>Ingredient groups: {h(recipe["canonical_ingredients"])}</p><p>{h(recommendation["explanation"])}</p></div>')
+                parts.append(f'<div class="candidate"><h4>{slot} · {h(recipe.get("title", "Recipe"))}</h4><p class="muted">Recipe {h(recipe["id"])}</p><p>{h(recipe["duration_minutes"])} minutes · Nutrition {h(recipe["nutrition_score"])}</p><p>Ingredient groups: {h(recipe["canonical_ingredients"])}</p><p>{h(recommendation["explanation"])}</p></div>')
             parts.append('</div>')
             result_rows = []
             for system in ["single", "specialists"]:

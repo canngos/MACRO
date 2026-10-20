@@ -19,6 +19,7 @@ def main():
         p = sub.add_parser(name, help="Evaluate with real AG2 judges (paid API calls)" if name == "run" else "No-cost request-count preview")
         p.add_argument("--cases", default="data/pilot")
         p.add_argument("--limit", type=int, default=20)
+        p.add_argument("--split", choices=["dev", "test"], help="Explicit benchmark split; --cases must be its root. Final-test execution awaits review/freeze.")
         if name == "run":
             # Accept previously documented commands; every run now uses real judges.
             p.add_argument("--live", action="store_true", help=argparse.SUPPRESS)
@@ -48,11 +49,11 @@ def main():
             from macro.evaluation.runner import experiment_plan, run
             config = read_json(args.config)
             if args.command == "plan":
-                print(json.dumps(experiment_plan(args.cases, args.limit, config), indent=2))
+                print(json.dumps(experiment_plan(args.cases, args.limit, config, args.split), indent=2))
             else:
                 if not args.allow_paid_api:
                     parser.error("Evaluation uses real AG2 judges and incurs API costs. Add --allow-paid-api to run.")
-                run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain)
+                run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain, args.split)
     except (ValueError, AssertionError) as exc:
         parser.exit(1, f"Error: {exc}\n")
 

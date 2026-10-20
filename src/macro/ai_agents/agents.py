@@ -6,7 +6,7 @@ import time
 from macro.shared.config import api_key
 from macro.shared.io import digest
 from .prompts import prompt
-from .schemas import SCHEMA_VERSION, AssessmentValidationError, response_schema, validate_assessment
+from .schemas import AssessmentValidationError, response_schema, validate_assessment, schema_version
 from .tools import calculate
 
 
@@ -72,6 +72,8 @@ def schema_example(node, root):
     """Illustrative wire shape, never a reference answer."""
     if "$ref" in node:
         return schema_example(root["$defs"][node["$ref"].split("/")[-1]], root)
+    if "anyOf" in node:
+        return schema_example(node["anyOf"][0], root)
     if "enum" in node:
         return node["enum"][0]
     kind = node.get("type")
@@ -83,7 +85,11 @@ def schema_example(node, root):
     if kind == "boolean":
         return False
     if kind in ("number", "integer"):
+        if "exclusiveMaximum" in node:
+            return node["exclusiveMaximum"] - 1
         return node.get("minimum", 0)
+    if kind == "null":
+        return None
     return "Illustrative value; replace using supplied evidence"
 
 
@@ -127,7 +133,7 @@ class LiveProvider:
         agent = make_agent(role, self.config, key, evidence)
         system, user = provider_prompt(role, evidence)
         thinking = thinking_enabled(self.config)
-        context_identity = digest([role, evidence, self.config, system, SCHEMA_VERSION])
+        context_identity = digest([role, evidence, self.config, system, schema_version(evidence)])
         messages = [{"role": "user", "content": user}]
         if feedback and feedback.get("validation_errors"):
             previous = feedback.get("raw")
@@ -214,7 +220,7 @@ class LiveProvider:
                                           "messages": copy.deepcopy(messages + [transport])}
                 raise
             return {"assessment": parsed, "raw": raw, "system_prompt": system, "user_prompt": user,
-                    "tool_calls": tool_log, "status": "ok", "provider": "ag2_" + self.config.get("provider", "openai"), "schema_version": SCHEMA_VERSION}
+                    "tool_calls": tool_log, "status": "ok", "provider": "ag2_" + self.config.get("provider", "openai"), "schema_version": schema_version(evidence)}
         raise ValueError("No assessment returned")
 
 

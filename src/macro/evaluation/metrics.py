@@ -10,6 +10,7 @@ def fraction(numerator, denominator):
 
 def compute(cases, references, results):
     refs = {r["case_id"]: r for r in references}
+    benchmark = bool(references and references[0].get("policy_version") == "benchmark-policy-v1")
     report = {}
     for system in ["single", "specialists"]:
         expected = len(cases) * 2
@@ -20,7 +21,7 @@ def compute(cases, references, results):
         tp = fp = fn = tn = checked_flags = 0
         subtypes = {name: {key: 0 for key in ["tp", "fp", "fn", "tn", "observed_flags"]}
                     for name in ["duration", "ingredient_exclusion"]}
-        types = {k: [0, 0] for k in ["constraint", "dominance", "tradeoff"]}
+        types = {k: [0, 0] for k in (["constraint", "dominance", "tradeoff", "control_tie", "both_violate"] if benchmark else ["constraint", "dominance", "tradeoff"])}
         alignment = [0, 0]
         unresolved_expected = [0, 0]
         outcomes = Counter()
@@ -28,7 +29,8 @@ def compute(cases, references, results):
         for original in cases:
             cid = original["case_id"]
             ref = refs[cid]
-            expected_canonical = canonical_decision(original, ref["decision"])
+            expected_verdict = ref["verdict"] if benchmark else ref["decision"]
+            expected_canonical = canonical_decision(original, expected_verdict)
             decisions = []
             for order in ["original", "reversed"]:
                 case = original if order == "original" else swapped(original)
@@ -76,10 +78,11 @@ def compute(cases, references, results):
                 types[ref["case_type"]][1] += 1
                 correct = bool(result and result["status"] == "ok" and decisions[-1] == expected_canonical)
                 types[ref["case_type"]][0] += correct
-                if ref["case_type"] == "tradeoff" and original["profile"]["priority"] != "unspecified":
+                priority_declared = original["profile"]["priorities"] is not None if benchmark else original["profile"]["priority"] != "unspecified"
+                if ref["case_type"] == "tradeoff" and priority_declared:
                     alignment[1] += 1
                     alignment[0] += correct
-                if ref["decision"] == "unresolved":
+                if expected_verdict == ("insufficient_information" if benchmark else "unresolved"):
                     unresolved_expected[1] += 1
                     # An inconsistent assessment is not a correct insufficient-priority explanation.
                     unresolved_expected[0] += bool(correct and result and result["status"] == "ok")
@@ -98,9 +101,13 @@ def compute(cases, references, results):
             "declared_priority_alignment": fraction(*alignment),
             "constraint_subtype_diagnostics": subtypes,
             "correct_insufficient_priority_outcomes": fraction(*unresolved_expected),
-            "unresolved_frequency": {"count": outcomes["unresolved"], "completed": coverage, "rate": outcomes["unresolved"] / coverage if coverage else None},
+            "unresolved_frequency": {"count": outcomes["insufficient_information" if benchmark else "unresolved"], "completed": coverage, "rate": outcomes["insufficient_information" if benchmark else "unresolved"] / coverage if coverage else None},
             "outcomes": dict(outcomes), "candidate_order_stability": fraction(stable, len(cases)),
             "complete_order_pairs": stable_complete}
+        if benchmark:
+            report[system]["overall_accuracy"] = fraction(sum(v[0] for v in types.values()), expected)
+            rates = [v[0] / v[1] for v in types.values() if v[1]]
+            report[system]["macro_category_accuracy"] = sum(rates) / len(rates) if rates else None
     return report
 
 

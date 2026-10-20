@@ -2,6 +2,8 @@
 
 Prepared 19 October 2026 against this repository's AG2 Classic implementation. **The initial provider migration is now applied and verified offline.** The snippets below remain as implementation reference; live service compatibility has not been verified and no paid API calls were launched.
 
+**20 October update:** benchmark runner/prompt/schema/coordinator/report integration is now implemented and checked offline; see [Section 9.1](#91-benchmark-integration-and-checks--20-october-2026). The saved `deepseek-pilot-020` report also establishes that the historical 20-case live pilot was subsequently run (173 completed requests, full 40/40 evaluation coverage per system). Earlier implementation-status paragraphs below describe the 19 October work, not today's live-run history. No new paid calls or final-test model evaluation were launched during the 20 October integration.
+
 ## Implementation status — 19 October 2026
 
 Completed the remaining initial-adapter work from original line 253 onward, preserving the existing Sections 3–5 edits:
@@ -531,18 +533,91 @@ Once that works, a bounded 20-case development pilot can use:
 
 The cap can legitimately stop a run if tool rounds/retries are frequent. Inspect records before changing the cap or resuming uncertain calls. New configuration/code requires a new run ID; unchanged interrupted runs may resume under the existing identity checks.
 
+### 9.1 Benchmark integration and checks — 20 October 2026
+
+The requested “400 validation cases” are actually `benchmark-v2`'s **400 final-test cases**, separate from **120 development cases**. Following the user's clarification, prepared and checked the integration while preserving the final cases: no final case was sent to a model, no paid API calls were made, and dataset files and historical run artifacts were not edited. Offline integrity/reference verification and a request-count preview are permitted without consuming the final split for model development.
+
+Changes applied (paths relative to `MACRO/`):
+
+- `src/macro/cli.py`, `evaluation/runner.py`: added explicit `--split dev|test` with `--cases` pointing to the benchmark root. Benchmark inputs load public `<split>/cases.jsonl` and separate `private/<split>.references.jsonl`; verify saved hashes, labels, swaps and overlaps before execution; reject missing/duplicate selected IDs or references. Removed the pilot's 20-case cap only for explicitly selected benchmark splits. Pilot commands retain their original policy and limit.
+- `ai_agents/benchmark_schemas.py`, `ai_agents/schemas.py`: added a separate `benchmark-assessment-v1` contract with the five benchmark verdicts, active objectives, full/null priorities, nullable inactive preference scores, and negative-duration speed scores. Existing A/B coverage, feasibility/violation coherence and public evidence-pointer validation apply to all four roles. Invalid outputs remain technical failures.
+- `ai_agents/prompts.py`, `ai_agents/agents.py`: added `benchmark-v1-provider` prompts for `benchmark-policy-v1`; explain null hard limits, active versus inactive objectives, speed, lexicographic priorities and explanation diagnostics. Public evidence remains explicitly whitelisted; private labels/categories/source mappings are never judge inputs. Extended illustrative schema rendering for nullable unions and negative speed values. Existing DeepSeek JSON mode, tools, bounded retries and thinking continuations remain shared.
+- `ai_agents/benchmark_schemas.py`, `evaluation/runner.py`: benchmark coordination uses specialist-reported feasibility and scores, derives comparisons arithmetically, and applies feasibility, ties, dominance and priorities. It does not consult the reference evaluator or gold labels. Single-judge decisions are retained; disagreement between reported comparisons and numeric scores is diagnostic. Benchmark policy, prompt/schema, split, dataset-manifest hash, code/configuration and selected-case/reference identities are saved for safe resume. Use a fresh run ID after source/configuration changes.
+- `evaluation/metrics.py`, `reporting/summary.py`, `reporting/html_report.py`: support the new reference layout and all five categories, overall and macro category accuracy, insufficient-information outcomes, full planned denominators, speed findings, null hard limits and recipes without titles. Missing/failed evaluations count against accuracy; both orders are repeated observations. Reports label benchmark integration/development results as nonfinal.
+- `tests/test_benchmark_runner.py`: seven new offline tests cover hand-specified speed/priority/constraint/tie cases, inactive preference, malformed priorities/pointers, arithmetic on reported scores, missing specialist coverage, all four DeepSeek SDK request paths with networking blocked, full 120-case development persistence/report/resume, missing-result denominators, the 400-case preview, and the final-test execution guard.
+
+Verification performed with the existing `venv/Scripts/python.exe`; no dependency changes:
+
+- `-m unittest tests.test_benchmark_runner`: **7 tests passed**. The full development fixture pass covered **120 cases × two orders × four roles = 960 fixture assessments** and 240 evaluations per system. Fixtures use deterministic reference-shaped answers; their perfect agreement checks wiring and reporting, **not DeepSeek accuracy**. They make zero API requests; temporary fixture reports are removed by the test.
+- `-m macro.evaluate_case_generation.benchmark --out data/benchmark-v2 --verify-only`: passed saved-artifact integrity, recomputed policy labels, order-swap/factual-template checks, and zero recipe/profile/case overlap. Manual review, explanation-length leakage and surface-classifier checks still report **pending**; explanation variants/source review and final freeze are also outstanding.
+- The 400-case DeepSeek preview passed: **3,200 initial requests**, **19,200 maximum** with two attempts and two tool rounds. The 120-case development preview is 960 initial / 5,760 maximum requests. Request caps are not monetary caps; pricing stays unset.
+- `-m unittest discover -s tests`: **75 tests passed** (68 existing plus seven benchmark integration tests). The final development persistence/report/resume test also passed after the HTML category-table update. The suite log is saved locally at `tmp/benchmark-integration-tests.log` (ignored by Git).
+- `-m compileall -q src/macro`, `git diff --check`, and `-m pip check`: passed. The historical one-case DeepSeek pilot preview still reports eight initial / 48 maximum requests. `git diff --exit-code -- data` confirmed no dataset edits. Expected AG2 unknown-model pricing and Python deprecation warnings do not establish a provider price or live compatibility.
+
+Reproduce the no-cost preparation checks from `MACRO/`:
+
+```powershell
+$taskPython = '.\venv\Scripts\python.exe'
+& $taskPython -m unittest discover -s tests
+& $taskPython -m macro.evaluate_case_generation.benchmark --out data/benchmark-v2 --verify-only
+& $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
+& $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split test --limit 400
+```
+
+A later **paid development smoke run**, not executed during this work, can use:
+
+```powershell
+& $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 1 --allow-paid-api --max-calls 48 --run-id deepseek-benchmark-dev-smoke-001
+& $taskPython -m macro summarize results/deepseek-benchmark-dev-smoke-001
+```
+
+Inspect that saved run's schema validity, failures, tools, evidence, model metadata and usage before expanding to 120 development cases. The existing live 20-case pilot used the historical policy and does not establish benchmark prompt compatibility. `macro run --split test` currently refuses execution **before reading credentials or creating a provider**, even with `--allow-paid-api`; `plan --split test` is available. Final execution needs a separate change after review, leakage/variant decisions and dataset/configuration freeze, consistent with the user's instruction to preserve the final cases.
+
+### 9.2 Instructions for the final 400-case validation run
+
+The final operational step is to enable final-test execution **after development checks, review and freeze are complete**, then launch a new paid run. These instructions describe future work; they do not enable the guard or launch any API requests. The 400 cases are the final-test split, not an additional development/validation split.
+
+1. **Validate live behavior on development cases.** Run the one-case development smoke command in Section 9.1 and review schema validity, evidence pointers, calculator continuations, failures, returned model metadata and usage. Once satisfactory, evaluate all 120 development cases. For the current disabled-thinking configuration:
+
+   ```powershell
+   & $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120 --allow-paid-api --max-calls 5760 --run-id deepseek-benchmark-dev-120-001
+   & $taskPython -m macro summarize results/deepseek-benchmark-dev-120-001
+   ```
+
+   Use development results to settle prompts, thinking mode, token/time limits, retry/tool limits and scoring. Changed code/configuration requires a fresh run ID. If choosing thinking-enabled mode, validate that configuration on development cases and use the same frozen configuration for the final run.
+
+2. **Complete and record benchmark readiness.** Finish source/manual review, explanation-length leakage and surface-classifier checks. Decide whether the final study uses only the factual base explanations or the planned explanation variants; implement/review any required variants before freezing. Record review evidence and the final scope rather than changing pending flags without completing the checks. Additional variants require their own integration and request-budget calculation; the commands below cover only the 400 base cases in both orders.
+
+3. **Enable reviewed final execution and freeze the experiment.** Replace the unconditional `split == "test"` rejection in `src/macro/evaluation/runner.py` with a checked final-readiness path; retain the explicit paid-API acknowledgement, split/private-reference separation, integrity checks and resume identity checks. Update `evaluation_status` and report warnings so a reviewed final run is identified correctly while development runs remain labeled development. Update the execution-guard tests to cover both rejection before readiness and execution after readiness. Run the full offline suite and static checks again. Freeze and record the dataset hashes, review evidence, source revision, policy/prompt/schema versions, selected DeepSeek configuration/model and date **before any final case is sent to a model**. Do not tune these settings using final-test results.
+
+4. **Preview, then launch the frozen final run.** From `MACRO/`, use the frozen configuration and a fresh run ID. The example below assumes `configs/deepseek-pilot.json` is the configuration selected and frozen during development:
+
+   ```powershell
+   $taskPython = '.\venv\Scripts\python.exe'
+   & $taskPython -m macro.evaluate_case_generation.benchmark --out data/benchmark-v2 --verify-only
+   & $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split test --limit 400
+   # FUTURE COMMAND: currently rejected by the final-test execution guard.
+   # Run only after steps 1-3 are completed and recorded.
+   & $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split test --limit 400 --allow-paid-api --max-calls 19200 --run-id deepseek-benchmark-final-400-001
+   & $taskPython -m macro summarize results/deepseek-benchmark-final-400-001
+   ```
+
+   The base experiment requires **3,200 initial requests** (400 cases × two orders × four roles). With two attempts and two tool rounds, **19,200 requests** is the configured theoretical maximum. `--max-calls` caps requests, not money; select an affordable explicit cap before launch and recompute it if retry/tool limits or study arms change. Pricing is currently unset, so reports do not provide a monetary estimate.
+
+5. **Inspect completion and preserve the final record.** Review `summary.json`, `report.html`, role failures and call records. Expected coverage is **800 evaluations per system** and 400 order pairs; report any missing/failed evaluations in the planned denominators. Report overall/per-category/macro accuracy, constraint diagnostics, insufficient-information outcomes, order stability, usage and latency. Preserve configuration, hashes, private references and raw records with the run. To resume an unchanged interrupted run, repeat its exact command with the same ID; inspect uncertain requests before explicitly opting into `--retry-uncertain`, since they may already have been billed. Do not run concurrent processes with the same ID. If final results prompt further development, disclose test-set reuse rather than treating those cases as untouched final evidence.
+
 ## 10. Separate work before the 400-case final evaluation
 
-Do **not** simply point the current pilot `macro run` at `data/benchmark-v2/test`. The provider migration does not resolve these incompatibilities:
+Do **not** point a historical pilot command directly at `data/benchmark-v2/test`. Section 9.1 now implements the integration below using explicit split selection; readiness for final model evaluation is still pending:
 
 | Component | Required benchmark integration |
 | --- | --- |
-| Runner | Replace the hard 20-case limit; explicitly load selected split and its separate private reference file |
-| Profile/prompts | Adopt `hard_max_duration_minutes`, active `objectives`, full/null `priorities`, and speed semantics |
-| Output schema | Support the new verdict vocabulary and all active objectives; align reference and model-output field names |
-| Coordinator | Apply benchmark-policy-v1 to model findings, not the historical two-objective pilot rules |
-| Metrics/reports | Include ties/both-violate categories, macro/per-category accuracy, coverage, unresolved outcomes and new reference layout |
-| Evidence | Keep references, source mapping, categories and manifest private; send only the public case evidence to judges |
+| Runner | Implemented: explicit split/private-reference loading and split-sized limits; final-test execution guarded |
+| Profile/prompts | Implemented: `hard_max_duration_minutes`, active `objectives`, full/null `priorities`, speed semantics |
+| Output schema | Implemented: benchmark verdicts/objectives, separate model/reference field handling |
+| Coordinator | Implemented: benchmark-policy-v1 on model findings, independently of gold labels |
+| Metrics/reports | Implemented: five categories, overall/macro accuracy, coverage, failures and new reference layout |
+| Evidence | Implemented: only whitelisted public evidence goes to judges |
 | Benchmark readiness | Finish manual review, explanation variants and leakage checks, then freeze data/prompts/configurations |
 
 The offline benchmark integrity check is already available:
@@ -551,7 +626,7 @@ The offline benchmark integrity check is already available:
 & $taskPython -m macro.evaluate_case_generation.benchmark --out data/benchmark-v2 --verify-only
 ```
 
-After benchmark integration, develop on the **120 development cases**. Keep the **400 final cases** untouched by model-result-driven changes. There is deliberately no currently runnable final-test command here: the current CLI cannot yet execute that experiment correctly.
+Develop on the **120 development cases** using the Section 9.1 commands. Keep the **400 final cases** untouched by model-result-driven changes. The CLI now previews either split and executes development cases; paid final-test execution remains deliberately disabled pending the outstanding reviews and freeze. Section 9.2 records the remaining work and the future final-run command.
 
 For the current two-system architecture, 400 cases x two orders x four model roles means **3,200 initial calls** before retries/tools; 120 development cases mean 960. Explanation variants and additional systems multiply these counts. These are estimates, not permission to launch a run or statements that all study arms are implemented.
 

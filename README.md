@@ -148,7 +148,17 @@ The defaults create **120 development cases and 400 final test cases** under
 [EVALUATION_POLICY.md](EVALUATION_POLICY.md). Read the generated benchmark README
 for coverage and pending reviews. Gold references and source mappings are in its
 `private/` folder; only the split's `cases.jsonl` belongs in judge input.
-The historical pilot judge prompts/runner do not yet support this new profile schema.
+The runner now supports this profile schema through explicit split selection; see
+[Section 9.1 of the migration guide](DEEPSEEK_MIGRATION.md#91-benchmark-integration-and-checks--20-october-2026).
+Preview the 120 development cases without API calls:
+
+```powershell
+.\venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
+```
+
+`--split test --limit 400` supports a no-cost preview. Paid final-test execution
+is disabled while manual review, leakage checks and final freeze remain pending.
+Use the development split for smoke runs and configuration choices.
 Each of the five case categories has 24 development and 80 final-test cases. Category
 balance is distinct from verdict-label balance. The earlier 600-test-case draft remains
 in `data/benchmark-v1/` for provenance; do not combine versions for evaluation.

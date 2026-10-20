@@ -18,6 +18,10 @@ def summarize(run_dir):
     report = {"mode": manifest["mode"], "is_model_performance": manifest["mode"] == "live",
               "warning": "OFFLINE FIXTURES ONLY: not evidence of judge reliability" if manifest["mode"] == "offline" else "Pilot development results; not final benchmark estimates",
               "metrics": compute(cases, refs, results)}
+    if manifest.get("split"):
+        report.update(split=manifest["split"], policy_version=manifest["policy_version"],
+                      warning="Benchmark integration/development results; dataset review and final freeze remain pending. "
+                              + ("OFFLINE FIXTURES ONLY; not model performance." if manifest["mode"] == "offline" else "Not final evaluation."))
     calls = [read_json(p) for p in (run_dir / "calls").glob("*.json")]
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     for call in calls:
@@ -44,18 +48,26 @@ def summarize(run_dir):
         report["costs"]["pricing"] = pricing
         report["costs"]["note"] = "Uncached-input estimate for known usage only; unknown calls omitted and cache discounts not applied."
     write_json(run_dir / "summary.json", report)
-    lines = ["# Pilot run report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
+    lines = ["# MACRO run report", "", report["warning"], "", f"Mode: {manifest['mode']}. Run ID: {run_dir.name}.", "",
              "| System | Completed | Constraint precision | Constraint recall | Dominance accuracy | Priority alignment | Order stability |",
              "|---|---:|---:|---:|---:|---:|---:|"]
     def rate(x):
         return "n/a" if x is None else f"{x:.3f}"
     for system, m in report["metrics"].items():
         lines.append(f"| {system} | {m['evaluation_coverage']['correct']}/{m['evaluation_coverage']['total']} | {rate(m['constraint_detection']['precision'])} | {rate(m['constraint_detection']['recall'])} | {rate(m['accuracy_by_type']['dominance']['rate'])} | {rate(m['declared_priority_alignment']['rate'])} | {rate(m['candidate_order_stability']['rate'])} |")
+    if manifest.get("split"):
+        lines += ["", "| System | Overall accuracy | Macro category accuracy |", "|---|---:|---:|"]
+        for system, m in report["metrics"].items():
+            lines.append(f"| {system} | {rate(m['overall_accuracy']['rate'])} | {rate(m['macro_category_accuracy'])} |")
+        lines += ["", "| System | Category | Correct / planned | Accuracy |", "|---|---|---:|---:|"]
+        for system, m in report["metrics"].items():
+            for category, counts in m["accuracy_by_type"].items():
+                lines.append(f"| {system} | {category} | {counts['correct']}/{counts['total']} | {rate(counts['rate'])} |")
     lines += ["", "See summary.json for raw counts, all denominators, unresolved outcomes, failures and costs.",
               "Original/reversed results are repeated observations; they are not independent samples.",
               "The panel has three initial calls per case/order versus one for the single judge; this does not isolate specialization from additional computation.",
               "", f"Model calls: {len(calls)}. Currency estimate: {report['costs']['currency_estimate']}.",
-              "Live pilot gate remains pending until the user runs the live experiment and reviews its diagnostics."]
+              "Benchmark review and final freeze remain pending." if manifest.get("split") else "Live pilot gate remains pending until the user runs the live experiment and reviews its diagnostics."]
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     from .html_report import render_report
     render_report(run_dir, report)
