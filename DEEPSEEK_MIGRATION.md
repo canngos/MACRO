@@ -1,5 +1,13 @@
 # Switching the judge API from OpenAI to DeepSeek
 
+**20 October merge repair:** the 120-case live development run has completed; see
+[its review](DEEPSEEK_DEV_120_REVIEW.md). After merging main, the runtime now uses
+the consolidated benchmark schema and shared constraint guardrails. Merge regressions
+were repaired as documented in [the repair review](MERGE_REPAIR_REVIEW.md).
+Use the current [README commands](README.md) and fresh run IDs. Historical pilot
+execution commands and implementation snippets below are archival; their saved
+results remain readable. Final-test inference remains disabled pending review/freeze.
+
 Prepared 19 October 2026 against this repository's AG2 Classic implementation. **The initial provider migration is now applied and verified offline.** The snippets below remain as implementation reference; live service compatibility has not been verified and no paid API calls were launched.
 
 **20 October update:** benchmark runner/prompt/schema/coordinator/report integration is now implemented and checked offline; see [Section 9.1](#91-benchmark-integration-and-checks--20-october-2026). The saved `deepseek-pilot-020` report also establishes that the historical 20-case live pilot was subsequently run (173 completed requests, full 40/40 evaluation coverage per system). Earlier implementation-status paragraphs below describe the 19 October work, not today's live-run history. No new paid calls or final-test model evaluation were launched during the 20 October integration.

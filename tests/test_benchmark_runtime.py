@@ -73,7 +73,7 @@ class BenchmarkRuntimeTests(unittest.TestCase):
             fixture_record = BenchmarkFixtureProvider().assess(role, c, 'test')
             with tempfile.TemporaryDirectory() as folder, patch('macro.ai_agents.agents.openai_api_key', return_value='offline-placeholder'), patch.object(Completions, 'create', return_value=completion(fixture_record['raw'])) as sdk:
                 record = LiveProvider(CONFIG, CallRecorder(folder, 3)).assess(role, c, 'test_attempt-01')
-                self.assertEqual(record['schema_version'], 'benchmark-assessment-v1')
+                self.assertEqual(record['schema_version'], 'benchmark-assessment-v2')
                 wire = sdk.call_args.kwargs['response_format']['json_schema']['schema']
                 self.assertEqual(wire, response_schema(role, c))
         raw = self.records(fixture())['single']['assessment']
@@ -181,7 +181,7 @@ class BenchmarkRuntimeTests(unittest.TestCase):
 
     def test_final_budget_rejected_before_provider_initialization(self):
         factory = unittest.mock.Mock(side_effect=AssertionError('Provider initialized'))
-        with self.assertRaisesRegex(ValueError, 'at least 3200'):
+        with self.assertRaisesRegex(ValueError, 'Final test execution is disabled'):
             _run(PACKAGE / 'test', CONFIG, factory, 'live', limit=400, max_calls=240)
         factory.assert_not_called()
 

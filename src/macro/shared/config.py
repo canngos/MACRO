@@ -17,7 +17,7 @@ DEEPINFRA_PRICING = {
 def provider_config(config):
     """Resolve the environment once so all judges in a run use the same provider."""
     values = dotenv_values(Path.cwd() / ".env")
-    provider = values.get("LLM_PROVIDER", os.getenv("LLM_PROVIDER", ""))
+    provider = config.get("provider") or values.get("LLM_PROVIDER", os.getenv("LLM_PROVIDER", ""))
     provider = str(provider or "").strip().lower()
     if not provider:
         # Preserve existing .env files; explicit provider selection takes precedence.
@@ -25,8 +25,8 @@ def provider_config(config):
         if flag not in ("true", "false"):
             raise ValueError("IS_LOCAL_LLM must be true or false")
         provider = "ollama" if flag == "true" else "openai"
-    if provider not in ("ollama", "openai", "deepinfra"):
-        raise ValueError("LLM_PROVIDER must be ollama, openai or deepinfra")
+    if provider not in ("ollama", "openai", "deepinfra", "deepseek"):
+        raise ValueError("LLM_PROVIDER must be ollama, openai, deepinfra or deepseek")
     resolved = dict(config)
     if provider == "ollama":
         model = values.get("LOCAL_LLM_MODEL", os.getenv("LOCAL_LLM_MODEL", ""))
@@ -42,6 +42,10 @@ def provider_config(config):
         resolved.update(provider=provider, model=model.strip(), base_url=DEEPINFRA_BASE_URL,
                         reasoning_effort=None, temperature=0,
                         pricing=dict(DEEPINFRA_PRICING) if model.strip() == DEEPINFRA_MODEL else None)
+    elif provider == "deepseek":
+        if config.get("provider") != "deepseek":
+            raise ValueError("DeepSeek requires an explicit DeepSeek config with model, thinking and max_tokens")
+        resolved.update(provider="deepseek", base_url=config.get("base_url", "https://api.deepseek.com"))
     else:
         resolved.update(provider="openai", base_url=OPENAI_BASE_URL)
     return resolved
@@ -57,7 +61,15 @@ def deepinfra_api_key():
 
 
 def _api_key(name):
-    key = dotenv_values(Path.cwd() / ".env").get(name, os.getenv(name))
+    key = dotenv_values(Path.cwd() / ".env").get(name) or os.getenv(name)
     if not key or not key.strip():
         raise ValueError(f"{name} is missing; set it in the project's .env file")
     return key.strip()
+
+
+def api_key(config):
+    names = {"openai": "OPENAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "deepinfra": "DEEPINFRA_API_KEY"}
+    provider = config.get("provider", "openai")
+    if provider not in names:
+        raise ValueError(f"Unsupported provider: {provider}")
+    return _api_key(names[provider])

@@ -3,8 +3,16 @@ from pathlib import Path
 from macro.shared.io import read_json, read_jsonl
 
 
-def load_inputs(folder, limit, config):
+def load_inputs(folder, limit, config, split=None):
     folder = Path(folder)
+    if split is not None:
+        if split not in ("dev", "test"):
+            raise ValueError("Benchmark split must be dev or test")
+        if folder.name in ("dev", "test"):
+            if folder.name != split:
+                raise ValueError("--split disagrees with the selected split folder")
+        else:
+            folder = folder / split
     cases = read_jsonl(folder / "cases.jsonl")
     if not cases:
         raise ValueError("No evaluation cases")
@@ -30,7 +38,8 @@ def load_inputs(folder, limit, config):
         raise ValueError("Missing or duplicate case/reference IDs")
     cases = cases[:limit]
     refs = [r for r in refs if r["case_id"] in {c["case_id"] for c in cases}]
-    for key in ("max_attempts", "max_completion_tokens", "timeout_seconds"):
+    token_key = "max_tokens" if config.get("provider") == "deepseek" else "max_completion_tokens"
+    for key in ("max_attempts", token_key, "timeout_seconds"):
         if type(config.get(key)) is not int or config[key] <= 0:
             raise ValueError(key + " must be a positive integer")
     if type(config.get("max_tool_rounds")) is not int or config["max_tool_rounds"] < 0:

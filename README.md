@@ -27,36 +27,37 @@ DEEPINFRA_API_KEY=your-deepinfra-key
 DEEPINFRA_MODEL=Qwen/Qwen3.5-9B
 ```
 
-`LLM_PROVIDER` selects `deepinfra`, `ollama` or `openai` and takes precedence over the old `IS_LOCAL_LLM` flag. There is no automatic fallback between providers. Keys stay in `.env` and are not written into run manifests.
+An explicit `provider` in a JSON configuration takes precedence. Otherwise, `LLM_PROVIDER` selects `deepinfra`, `ollama` or `openai` and takes precedence over the old `IS_LOCAL_LLM` flag. There is no automatic fallback between providers. Keys stay in `.env` and are not written into run manifests.
 
 DeepInfra uses the existing AG2/OpenAI SDK dependencies; **no extra pip install is needed**. The [documented API endpoint](https://deepinfra.com/Qwen/Qwen3.5-9B/api?example=openai-python) is `https://api.deepinfra.com/v1/openai`. Your PC runs the evaluation code; DeepInfra runs the model. This does not use your OpenAI account or local GPU.
 
 ## 3. Try one case
 
-DeepSeek is also supported for the historical pilot with
-[configs/deepseek-pilot.json](configs/deepseek-pilot.json). Set `DEEPSEEK_API_KEY`
-in your existing `.env` or terminal environment; credentials are selected by
-provider, with `.env` taking precedence. Commands must run from this directory.
-Configurations without `provider` still select OpenAI.
+DeepSeek is supported on the current benchmark with
+[configs/deepseek-pilot.json](configs/deepseek-pilot.json). Despite its historical
+filename, this configuration now runs the benchmark schema. Set `DEEPSEEK_API_KEY`
+in your existing `.env` or terminal environment; `.env` credentials take precedence.
+An explicit configuration provider keeps this command on DeepSeek even if a different
+provider is selected in the environment.
 
 ```powershell
-.\venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/pilot --limit 1
-# Paid development check, only when ready to spend API credits:
-.\venv\Scripts\python.exe -m macro run --config configs/deepseek-pilot.json --cases data/pilot --limit 1 --allow-paid-api --max-calls 24 --run-id deepseek-pilot-001
+& $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
+# Paid development smoke check; use a new run ID after the merge repair:
+& $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 1 --allow-paid-api --max-calls 48 --run-id deepseek-dev-merge-smoke-001
+& $taskPython -m macro summarize results/deepseek-dev-merge-smoke-001
 ```
 
-Thinking must be explicitly configured. `configs/deepseek-pilot.json` disables it;
-`configs/deepseek-thinking-pilot.json` enables it with high effort, a 16,384-token
-cap and a 180-second timeout for every judge role. See Section 8 of
-[DEEPSEEK_MIGRATION.md](DEEPSEEK_MIGRATION.md#8-thinking-enabled-execution-implemented)
-for protocol handling, offline tests and a bounded smoke-run command.
-DeepSeek uses JSON-object output with
-local schema validation; OpenAI retains native schema enforcement. Both receive
-the same schema instructions under prompt version `pilot-v3-provider`. Use fresh
-run IDs after this migration. Pricing is unset, so reports show usage without a
-monetary estimate; AG2's unknown-model zero cost is not an actual price. Offline
-tests verify serialization, not live endpoint compatibility. See
-[the migration status](DEEPSEEK_MIGRATION.md) for verification and pending work.
+Set `$taskPython` to your installed environment's Python executable before using these
+commands. `configs/deepseek-thinking-pilot.json` enables thinking instead. Both modes
+have offline SDK protocol coverage; changed prompts and schemas require fresh live
+development checks. Pricing is unset, so recorded usage has no monetary estimate.
+AutoGen's unknown-model zero cost is not an actual price.
+
+The repaired merge uses `benchmark-assessment-v2` (positive `duration_minutes` findings)
+and `benchmark-judges-v2`. New runs retain the merged shared constraint guardrail and
+report raw decisions separately. The saved 120-case run predates that contract and
+must remain separate; its reports can be rebuilt without altering its recorded decisions.
+See [the merge repair review](MERGE_REPAIR_REVIEW.md) for verification and limitations.
 
 Start with a small compatibility run, then inspect its HTML report before the 400 cases:
 
@@ -100,13 +101,13 @@ The model then comes from `configs/benchmark-judges.json`; the other providers' 
 
 ## Preview the evaluation (no API charges)
 
-The historical Ollama development review is recorded in [BENCHMARK_RUN.md](BENCHMARK_RUN.md). For DeepInfra, use the current instructions here and a new run ID.
+For the current integration status, see [the merge repair review](MERGE_REPAIR_REVIEW.md). Use a new run ID for each changed provider, configuration or implementation.
 
 ```powershell
 .\.venv\Scripts\python.exe -m macro plan
 ```
 
-This validates the benchmark and previews all 400 test cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 3,200 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
+This validates the benchmark and previews all 120 development cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 960 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
 
 ## Run the judges with DeepInfra or OpenAI (incurs API charges)
 
@@ -116,15 +117,19 @@ First check a few development cases:
 .\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
 ```
 
-Then run the 400 test cases:
+The 400 final-test cases can be previewed without inference:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/test --limit 400 --max-calls 6000 --run-id deepinfra-benchmark-400-01
+.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/test --limit 400
 ```
+
+Final-test inference is disabled while dataset review, leakage checks, and freeze remain
+pending. Use development cases to settle the provider, prompts, and configuration first.
 
 | Option | Meaning |
 |---|---|
-| `--cases` | Split folder; defaults to `data/benchmark-v2/test` |
+| `--cases` | Split folder; defaults to `data/benchmark-v2/dev` |
+| `--split` | Optional `dev` or `test` when `--cases` names the package root |
 | `--limit` | Number of cases; omitted means the whole selected split |
 | `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
 | `--allow-paid-api` | Required for DeepInfra and OpenAI; unnecessary for local Ollama |
@@ -145,12 +150,15 @@ Reports and manifests identify the selected provider/model. Changing either requ
 - `calls/`: request records and token usage.
 - `manifest.json` and snapshots: the code/configuration/input identity used for the run.
 
-Rebuild reports without API calls:
+Rebuild a saved report or verify the existing dataset without API calls:
 
 ```powershell
-.\venv\Scripts\python.exe -m macro.evaluate_case_generation.benchmark
-.\venv\Scripts\python.exe -m macro.evaluate_case_generation.benchmark --verify-only
+& $taskPython -m macro summarize results/deepseek-benchmark-dev-120-001
+& $taskPython -m macro validate --cases data/benchmark-v2/dev
 ```
+
+Generate a new benchmark package only when intentionally preparing new data;
+`macro generate` refuses to overwrite existing packages.
 
 The defaults create **120 development cases and 400 final test cases** under
 `data/benchmark-v2/`, using `configs/benchmark-v2.json` and

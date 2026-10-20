@@ -16,12 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @patch('macro.shared.config.dotenv_values', return_value={})
 class CommandTests(unittest.TestCase):
-    def test_plan_defaults_to_all_400_cases_without_provider_initialization(self, _dotenv):
+    def test_plan_defaults_to_all_120_dev_cases_without_provider_initialization(self, _dotenv):
         output = io.StringIO()
         with patch('sys.argv', ['macro', 'plan']), contextlib.redirect_stdout(output), \
                 patch('macro.evaluation.runner.LiveProvider', side_effect=AssertionError('Provider initialized')):
             main()
-        self.assertEqual(json.loads(output.getvalue())['total_initial_calls'], 3200)
+        self.assertEqual(json.loads(output.getvalue())['total_initial_calls'], 960)
 
     def test_paid_command_requires_explicit_request_cap(self, _dotenv):
         with patch('sys.argv', ['macro', 'run', '--allow-paid-api']), \

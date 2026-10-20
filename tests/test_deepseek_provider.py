@@ -18,12 +18,11 @@ from macro.ai_agents.prompts import visible_case
 from macro.ai_agents.schemas import AssessmentValidationError
 from macro.evaluation.runner import _run, CallRecorder
 from macro.shared.io import read_json, write_jsonl
-from macro.shared.policy import findings
 from tests.fixtures import OfflineProvider
-from tests.test_pilot import fixture
+from tests.fixtures import fixture, write_fixture_package
 
 
-CONFIG = {"provider": "deepseek", "model": "deepseek-flash",
+CONFIG = {"policy_version": "benchmark-policy-v1", "provider": "deepseek", "model": "deepseek-flash",
           "base_url": "https://api.deepseek.com", "thinking": "disabled",
           "max_tokens": 3500, "timeout_seconds": 120, "max_attempts": 2,
           "max_tool_rounds": 2, "pricing": None}
@@ -143,9 +142,7 @@ class DeepSeekWireTests(unittest.TestCase):
         invalid = json.loads(self.raw())
         del invalid["attributes"]["B"]
         self.sdk.return_value = completion(json.dumps(invalid))
-        data = self.folder / "data"
-        write_jsonl(data / "cases.jsonl", [fixture()])
-        write_jsonl(data / "references.private.jsonl", [{"case_id": "fixture", **findings(fixture())}])
+        data = write_fixture_package(self.folder / "data")
         # Keep generated experiment artifacts inside the temporary directory.
         import os
         previous = Path.cwd()
@@ -256,7 +253,7 @@ class DeepSeekThinkingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "matching saved"):
             self.assess("attribute", feedback=feedback)
         changed = json.loads(json.dumps(self.evidence))
-        changed["profile"]["max_duration_minutes"] += 1
+        changed["profile"]["hard_max_duration_minutes"] += 1
         with self.assertRaisesRegex(ValueError, "matching saved"):
             LiveProvider(THINKING_CONFIG, self.recorder).assess("single", changed, "other-case", feedback=feedback)
 
@@ -278,9 +275,7 @@ class DeepSeekThinkingTests(unittest.TestCase):
             self.assess()
 
     def test_runner_persists_repair_history_and_reports_usage_without_reasoning(self):
-        data = self.folder / "data"
-        write_jsonl(data / "cases.jsonl", [fixture()])
-        write_jsonl(data / "references.private.jsonl", [{"case_id": "fixture", **findings(fixture())}])
+        data = write_fixture_package(self.folder / "data")
         count = 0
         def reply(**kwargs):
             nonlocal count

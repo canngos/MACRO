@@ -12,17 +12,6 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     audit = sub.add_parser("audit", help="Prepare a versioned HUMMUS subset without API calls")
     audit.add_argument("--source", default="pp_recipes/pp_recipes.csv")
-    audit.add_argument("--out", default="data/subset")
-    generate = sub.add_parser("generate", help="Offline pilot generation, exactly 20 cases")
-    generate.add_argument("--subset", default="data/subset")
-    generate.add_argument("--out", default="data/pilot")
-    validate = sub.add_parser("validate", help="Offline reference and schema checks")
-    validate.add_argument("--cases", default="data/pilot")
-    for name in ["run", "plan"]:
-        p = sub.add_parser(name, help="Evaluate with real AG2 judges (paid API calls)" if name == "run" else "No-cost request-count preview")
-        p.add_argument("--cases", default="data/pilot")
-        p.add_argument("--limit", type=int, default=20)
-        p.add_argument("--split", choices=["dev", "test"], help="Explicit benchmark split; --cases must be its root. Final-test execution awaits review/freeze.")
     audit.add_argument("--out", default="data/subset-v1")
     audit.add_argument("--config", default="configs/dataset-v1.json")
     generate = sub.add_parser("generate", help="Generate a benchmark package without API calls; refuses overwrites")
@@ -31,11 +20,12 @@ def main():
     generate.add_argument("--config", default="configs/benchmark-v2.json")
     generate.add_argument("--pilot", default="data/pilot/cases.jsonl", help="Historical cases used only to exclude previously inspected recipes")
     validate = sub.add_parser("validate", help="Verify benchmark hashes, labels and development/test separation")
-    validate.add_argument("--cases", default="data/benchmark-v2/test")
+    validate.add_argument("--cases", default="data/benchmark-v2/dev")
     for name in ("run", "plan"):
         p = sub.add_parser(name, help="Run AG2 judges using the selected provider" if name == "run" else "Validate inputs and preview request counts (no API calls)")
-        p.add_argument("--cases", default="data/benchmark-v2/test")
+        p.add_argument("--cases", default="data/benchmark-v2/dev")
         p.add_argument("--config", default="configs/benchmark-judges.json")
+        p.add_argument("--split", choices=["dev", "test"], help="Select a split when --cases names the benchmark root")
         p.add_argument("--limit", type=int, help="Number of cases; omitted means the complete selected split")
         if name == "run":
             p.add_argument("--allow-paid-api", action="store_true")
@@ -71,11 +61,7 @@ def main():
             if args.command == "plan":
                 print(json.dumps(experiment_plan(args.cases, args.limit, config, args.split), indent=2))
             else:
-                if not args.allow_paid_api:
-                    parser.error("Evaluation uses real AG2 judges and incurs API costs. Add --allow-paid-api to run.")
                 run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain, args.split)
-    except (ValueError, AssertionError) as exc:
-                run(args.cases, config, args.limit, args.run_id, args.max_calls, args.retry_uncertain)
     except (ValueError, AssertionError, FileNotFoundError) as exc:
         parser.exit(1, f"Error: {exc}\n")
 

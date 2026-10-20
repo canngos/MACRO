@@ -11,7 +11,7 @@ from openai.types.chat import ChatCompletion
 from openai.resources.chat.completions import Completions
 
 from macro.ai_agents.agents import LiveProvider
-from macro.ai_agents.benchmark_schemas import aggregate
+from macro.coordinator.aggregation import aggregate
 from macro.ai_agents.prompts import visible_case
 from macro.ai_agents.schemas import validate_assessment, AssessmentValidationError
 from macro.evaluation.runner import _run, run, load_inputs, experiment_plan, CallRecorder
@@ -49,12 +49,13 @@ class ReferenceFixtureProvider:
             recipe = next(r for r in evidence["candidate_pool"] if r["id"] == finding["recipe_id"])
             preferences.append({"candidate": slot, "preference_score": finding["objective_scores"].get("preference"), "evidence": ["/profile"]})
             attributes.append({"candidate": slot, "feasible": finding["feasible"], "violations": finding["violations"],
-                               "nutrition_score": recipe["nutrition_score"], "speed_score": -recipe["duration_minutes"], "evidence": ["/candidate_pool"]})
+                               "nutrition_score": recipe["nutrition_score"], "duration_minutes": recipe["duration_minutes"], "evidence": ["/candidate_pool"]})
             explanations.append({"candidate": slot, "supported": True, "relevant_tradeoffs_disclosed": True,
                                  "issues": [], "evidence": [f"/recommendations/{slot}/explanation"]})
-        from macro.shared.policy import compare
-        attr_comparisons = {o + "_comparison": compare(attributes[0][o + "_score"], attributes[1][o + "_score"]) for o in ["nutrition", "speed"]}
-        pref_fields = {"objectives": profile["objectives"], "priorities": profile["priorities"],
+        from macro.shared.comparison import compare
+        attr_comparisons = {o + "_comparison": compare(attributes[0]["nutrition_score"], attributes[1]["nutrition_score"]) for o in ["nutrition"]}
+        attr_comparisons["speed_comparison"] = compare(-attributes[0]["duration_minutes"], -attributes[1]["duration_minutes"])
+        pref_fields = {"priorities": profile["priorities"],
                        "preference_comparison": ref["objective_comparisons"].get("preference")}
         if role == "single":
             value = {"preferences": preferences, "attributes": attributes, "explanations": explanations,
@@ -77,25 +78,25 @@ class BenchmarkIntegrationTests(unittest.TestCase):
 
     def test_policy_speed_priority_and_no_priority(self):
         case = fixture()
-        self.assertEqual(aggregate(self.records(case))["decision"], "B")
+        self.assertEqual(aggregate(self.records(case), case)["decision"], "B")
         case["profile"]["priorities"] = None
-        self.assertEqual(aggregate(self.records(case))["decision"], "insufficient_information")
+        self.assertEqual(aggregate(self.records(case), case)["decision"], "insufficient_information")
         case["profile"]["objectives"] = ["nutrition"]
         case["profile"]["preferred_ingredients"] = []
-        self.assertEqual(aggregate(self.records(case))["decision"], "tie")
+        self.assertEqual(aggregate(self.records(case), case)["decision"], "tie")
         case["profile"]["hard_max_duration_minutes"] = 10
-        self.assertEqual(aggregate(self.records(case))["decision"], "B")
+        self.assertEqual(aggregate(self.records(case), case)["decision"], "B")
         case["profile"]["hard_max_duration_minutes"] = 5
-        self.assertEqual(aggregate(self.records(case))["decision"], "both_violate")
+        self.assertEqual(aggregate(self.records(case), case)["decision"], "both_violate")
 
     def test_uses_reported_scores_and_rejects_bad_coverage(self):
         records = self.records(fixture())
         records["attribute"]["assessment"]["findings"][0]["nutrition_score"] = 1.0
-        result = aggregate(records)
+        result = aggregate(records, fixture())
         self.assertEqual(result["decision"], "A")
         self.assertEqual(result["comparison_diagnostics"][0]["criterion"], "nutrition")
         records["explanation"]["assessment"]["findings"].pop()
-        self.assertEqual(aggregate(records)["status"], "technical_failure")
+        self.assertEqual(aggregate(records, fixture())["status"], "technical_failure")
 
     def test_nullable_scores_priorities_and_pointers(self):
         case = fixture()
@@ -125,7 +126,7 @@ class BenchmarkIntegrationTests(unittest.TestCase):
             with self.subTest(role=role), tempfile.TemporaryDirectory() as temp:
                 with patch.object(Completions, "create", return_value=response) as create, patch("socket.socket.connect", side_effect=AssertionError("Network forbidden")), patch("macro.ai_agents.agents.api_key", return_value="offline-key"):
                     saved = LiveProvider(CONFIG, CallRecorder(temp, 6)).assess(role, evidence, "fixture_attempt-01")
-                self.assertEqual(saved["schema_version"], "benchmark-assessment-v1")
+                self.assertEqual(saved["schema_version"], "benchmark-assessment-v2")
                 self.assertEqual(create.call_args.kwargs["response_format"], {"type": "json_object"})
                 self.assertEqual(create.call_args.kwargs["extra_body"], {"thinking": {"type": "disabled"}})
                 messages = json.dumps(create.call_args.kwargs["messages"])
@@ -148,7 +149,7 @@ class BenchmarkIntegrationTests(unittest.TestCase):
                     self.assertEqual(metric["overall_accuracy"]["rate"], 1)
                     self.assertEqual(metric["macro_category_accuracy"], 1)
                 self.assertIn("both_violate", (folder / "report.md").read_text(encoding="utf-8"))
-                self.assertIn("negative minutes", (folder / "report.html").read_text(encoding="utf-8"))
+                self.assertIn("Recorded duration", (folder / "report.html").read_text(encoding="utf-8"))
                 _run(ROOT / "data/benchmark-v2", CONFIG, lambda _: ReferenceFixtureProvider(), "offline",
                      limit=120, run_id="benchmark-dev-integration", max_calls=0, split="dev")
                 with self.assertRaisesRegex(ValueError, "Resume"):
@@ -164,7 +165,7 @@ class BenchmarkIntegrationTests(unittest.TestCase):
                 run(ROOT / "data/benchmark-v2", CONFIG, limit=400, split="test")
 
     def test_missing_evaluations_count_against_all_categories(self):
-        cases, refs = load_inputs(ROOT / "data/benchmark-v2", 120, "dev")
+        cases, refs, _ = load_inputs(ROOT / "data/benchmark-v2", 120, CONFIG, split="dev")
         report = compute(cases, refs, {})
         for metric in report.values():
             self.assertEqual(metric["overall_accuracy"], {"correct": 0, "total": 240, "rate": 0})

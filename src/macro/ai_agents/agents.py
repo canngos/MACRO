@@ -1,19 +1,21 @@
-"""AG2 adapter for OpenAI, DeepInfra and local Ollama. Imports never initialize a model."""
+"""AG2 adapter for DeepSeek, OpenAI, DeepInfra and Ollama; no model initialized on import."""
+import copy
 import json
 import time
 
-from macro.shared.config import OLLAMA_BASE_URL, OPENAI_BASE_URL, DEEPINFRA_BASE_URL, openai_api_key, deepinfra_api_key
+from macro.shared.config import OLLAMA_BASE_URL, OPENAI_BASE_URL, DEEPINFRA_BASE_URL, openai_api_key, deepinfra_api_key, api_key
+from macro.shared.io import digest
 from .prompts import prompt
-from .schemas import AssessmentValidationError, response_schema, validate_assessment, schema_version
+from .schemas import AssessmentValidationError, response_schema, validate_assessment, SCHEMA_VERSION
 from .tools import calculate
 
 
 def make_agent(role, config, api_key, evidence=None):
     from autogen import ConversableAgent, LLMConfig
     schema = response_schema(role, evidence)
-    system, _ = prompt(role, evidence or {})
+    system, _ = provider_prompt(role, evidence or {})
     provider = config.get("provider", "openai")
-    endpoints = {"ollama": OLLAMA_BASE_URL, "openai": OPENAI_BASE_URL, "deepinfra": DEEPINFRA_BASE_URL}
+    endpoints = {"ollama": OLLAMA_BASE_URL, "openai": OPENAI_BASE_URL, "deepinfra": DEEPINFRA_BASE_URL, "deepseek": "https://api.deepseek.com"}
     if provider not in endpoints:
         raise ValueError("Unsupported LLM provider")
     local = provider == "ollama"
@@ -21,7 +23,9 @@ def make_agent(role, config, api_key, evidence=None):
                "api_key": "ollama" if local else api_key,
                "base_url": endpoints[provider],
                "max_retries": 0, "timeout": config["timeout_seconds"], "response_format": schema}
-    if local:
+    if provider == "deepseek":
+        options = llm_settings(config, api_key, schema)
+    elif local:
         # AG2's price table covers hosted models; local inference has no API token fee.
         options.update(max_tokens=config["max_completion_tokens"], temperature=config.get("temperature", 0),
                        price=[0, 0])
@@ -145,12 +149,21 @@ class LiveProvider:
     def assess(self, role, evidence, tag, feedback=None):
         self.recorder.reserve(self.config["max_tool_rounds"] + 1)
         provider = self.config.get("provider", "openai")
-        key = "ollama" if provider == "ollama" else deepinfra_api_key() if provider == "deepinfra" else openai_api_key()
+        if provider == "ollama":
+            key = "ollama"
+        elif provider == "deepseek":
+            key = api_key(self.config)
+        elif provider == "deepinfra":
+            key = deepinfra_api_key()
+        elif provider == "openai":
+            key = openai_api_key()
+        else:
+            raise ValueError("Unsupported LLM provider")
         # New agent and message history for every role/case/order/attempt.
         agent = make_agent(role, self.config, key, evidence)
         system, user = provider_prompt(role, evidence)
         thinking = thinking_enabled(self.config)
-        context_identity = digest([role, evidence, self.config, system, schema_version(evidence)])
+        context_identity = digest([role, evidence, self.config, system, SCHEMA_VERSION])
         messages = [{"role": "user", "content": user}]
         if feedback and feedback.get("validation_errors"):
             previous = feedback.get("raw")

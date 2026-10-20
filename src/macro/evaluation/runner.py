@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
-from macro.shared.config import openai_api_key, deepinfra_api_key, provider_config
+from macro.shared.config import openai_api_key, deepinfra_api_key, provider_config, api_key
 from macro.ai_agents.agents import LiveProvider
 from macro.coordinator.aggregation import AGGREGATION_VERSION, aggregate, comparisons, guard_single
 from macro.reporting.summary import summarize
@@ -57,8 +57,8 @@ def source_code_hashes():
             for p in sorted(package_root.rglob("*.py"))}
 
 
-def experiment_plan(folder, limit, config):
-    cases, _, dataset = load_inputs(folder, limit, config)
+def experiment_plan(folder, limit, config, split=None):
+    cases, _, dataset = load_inputs(folder, limit, config, split)
     count = len(cases)
     initial = count * 2 * 4
     return {"cases": count, "dataset": dataset, "orders": 2, "single_initial_calls": count * 2,
@@ -68,23 +68,30 @@ def experiment_plan(folder, limit, config):
             "base_url": config.get("base_url"), "note": "Plan only; no model initialized or API called."}
 
 
-def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
+def run(folder, config, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None):
     """Run real AG2 judges. Test fixtures are supplied only through the private runner."""
+    selected_split = split or Path(folder).name
+    if selected_split == "test":
+        raise ValueError("Final test execution is disabled while benchmark review/freeze remains pending. Use --split dev for development.")
     config = config if "provider" in config else provider_config(config)
     if config["provider"] == "deepinfra":
         deepinfra_api_key()
     elif config["provider"] == "openai":
         openai_api_key()
+    elif config["provider"] == "deepseek":
+        api_key(config)
     elif config["provider"] != "ollama":
         raise ValueError("Unsupported LLM provider")
     return _run(folder, config, lambda recorder: LiveProvider(config, recorder), "live",
                 limit, run_id, max_calls, retry_uncertain, split)
 
 
-def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_calls=None, retry_uncertain=False):
+def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_calls=None, retry_uncertain=False, split=None):
     if type(max_calls) is not int or max_calls < 0:
         raise ValueError("Set an explicit nonnegative max_calls request cap")
-    cases, refs, dataset = load_inputs(folder, limit, config)
+    cases, refs, dataset = load_inputs(folder, limit, config, split)
+    if mode == "live" and dataset["split"] == "test":
+        raise ValueError("Final test execution is disabled while benchmark review/freeze remains pending")
     if mode == "live" and max_calls < len(cases) * 8:
         raise ValueError(f"max-calls must cover at least {len(cases) * 8} initial requests; add room for retries/tools")
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
@@ -93,7 +100,9 @@ def _run(folder, config, provider_factory, mode, limit=None, run_id=None, max_ca
     run_dir = Path("results") / run_id
     source_hashes = source_code_hashes()
     identity = {"mode": mode, "config": config, "case_digest": digest(cases), "reference_digest": digest(refs),
-                "dataset": dataset, "policy_version": dataset["policy_version"],
+                "dataset": dataset, "split": dataset["split"],
+                "evaluation_status": "development_only_not_final" if dataset["split"] == "dev" else "offline_fixture_not_final",
+                "policy_version": dataset["policy_version"],
                 "aggregation_version": AGGREGATION_VERSION,
                 "prompt_version": BENCHMARK_PROMPT_VERSION, "code_hashes": source_hashes,
                 "schema_version": SCHEMA_VERSION,

@@ -16,13 +16,17 @@ def summarize(run_dir):
         row = read_json(path)
         results[(row["case_id"], row["order"], row["system"])] = row
     benchmark = manifest.get("policy_version") == "benchmark-policy-v1"
-    final = benchmark and manifest.get("dataset", {}).get("split") == "test"
+    split = manifest.get("split", manifest.get("dataset", {}).get("split"))
+    final = benchmark and manifest.get("evaluation_status") == "final_frozen"
     report = {"mode": manifest["mode"], "provider": manifest["config"].get("provider", "openai"),
               "model": manifest["config"].get("model"), "is_model_performance": manifest["mode"] == "live",
               "warning": "OFFLINE FIXTURES ONLY: not evidence of judge reliability" if manifest["mode"] == "offline" else
-                         "Benchmark test results; human review scheduled after inference" if final else "Development results; not final benchmark estimates",
+                         "Frozen benchmark test results" if final else "Development results; not final benchmark estimates",
               "metrics": compute(cases, refs, results)}
     if benchmark:
+        report.update(split=split, policy_version=manifest["policy_version"])
+    guarded = benchmark and any("verified_constraints" in r for r in results.values())
+    if guarded:
         report["raw_metrics"] = compute(cases, refs, {key: {**value, "decision": value.get("raw_decision", value["decision"])}
                                                      for key, value in results.items()})
         report["guardrails"] = {system: {"changed_decisions": sum(bool(r.get("guardrail_changed_decision"))
@@ -41,6 +45,11 @@ def summarize(run_dir):
         "tool_executions": sum(len(c.get("executed_tools", [])) for c in calls),
         "currency_estimate": None, "note": "All retry/tool-followup calls included. Unreported usage is unknown, not zero. No pricing configured."}
     local = report["provider"] == "ollama"
+    details = [((c.get("usage") or {}).get("completion_tokens_details") or {}) for c in calls]
+    reasoning = [d["reasoning_tokens"] for d in details
+                 if type(d.get("reasoning_tokens")) is int and d["reasoning_tokens"] >= 0]
+    report["costs"]["reported_reasoning_tokens"] = sum(reasoning) if reasoning else None
+    report["costs"]["calls_with_reasoning_token_breakdown"] = len(reasoning)
     pricing = None if local else manifest["config"].get("pricing")
     if local:
         report["costs"]["note"] = "Local Ollama requests. Tokens and latency are recorded; electricity/hardware costs are not estimated."
@@ -72,7 +81,7 @@ def summarize(run_dir):
         return "n/a" if x is None else f"{x:.3f}"
     for system, m in report["metrics"].items():
         lines.append(f"| {system} | {m['evaluation_coverage']['correct']}/{m['evaluation_coverage']['total']} | {rate(m['constraint_detection']['precision'])} | {rate(m['constraint_detection']['recall'])} | {rate(m['accuracy_by_type']['dominance']['rate'])} | {rate(m['declared_priority_alignment']['rate'])} | {rate(m['candidate_order_stability']['rate'])} |")
-    if manifest.get("split"):
+    if benchmark:
         lines += ["", "| System | Overall accuracy | Macro category accuracy |", "|---|---:|---:|"]
         for system, m in report["metrics"].items():
             lines.append(f"| {system} | {rate(m['overall_accuracy']['rate'])} | {rate(m['macro_category_accuracy'])} |")
@@ -88,7 +97,7 @@ def summarize(run_dir):
     lines += ["", "## Inference costs", "", "| System | Requests | Input tokens | Output tokens | Summed latency (s) |", "|---|---:|---:|---:|---:|"]
     for system, cost in report["costs_by_system"].items():
         lines.append(f"| {system} | {cost['model_calls']} | {cost['prompt_tokens']} | {cost['completion_tokens']} | {cost['latency_seconds_sum']:.2f} |")
-    if benchmark:
+    if guarded:
         lines += ["", "Primary accuracy uses the shared hard-constraint guardrail. Constraint precision/recall uses raw judge flags.",
                   "See raw_metrics in summary.json for accuracy before guardrails, and guardrails for changed-decision counts."]
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

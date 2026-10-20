@@ -1,4 +1,5 @@
 {
+  "policy_version": "benchmark-policy-v1",
   "provider": "deepseek",
   "base_url": "https://api.deepseek.com",
   "model": "deepseek-flash",

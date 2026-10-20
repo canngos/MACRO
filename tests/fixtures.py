@@ -46,7 +46,7 @@ class OfflineProvider:
             if p['hard_max_duration_minutes'] is not None and r['duration_minutes'] > p['hard_max_duration_minutes'] + 1e-9:
                 violations.append('duration')
             violations.extend('excluded:' + g for g in p['excluded_ingredients'] if g in r['canonical_ingredients'])
-            prefs.append(dict(candidate=s, preference_score=len(set(p['preferred_ingredients']) & set(r['canonical_ingredients'])) / len(p['preferred_ingredients']), evidence=[f'/candidate_pool/{i}/canonical_ingredients']))
+            prefs.append(dict(candidate=s, preference_score=len(set(p['preferred_ingredients']) & set(r['canonical_ingredients'])) / len(p['preferred_ingredients']) if 'preference' in p['objectives'] else None, evidence=[f'/candidate_pool/{i}/canonical_ingredients']))
             attrs.append(dict(candidate=s, feasible=not violations, violations=violations,
                               nutrition_score=r['nutrition_score'], duration_minutes=r['duration_minutes'], evidence=[f'/candidate_pool/{i}/duration_minutes']))
             expls.append(dict(candidate=s, supported=True, relevant_tradeoffs_disclosed=True, issues=[], evidence=[f'/recommendations/{s}/explanation']))
@@ -54,7 +54,7 @@ class OfflineProvider:
         for name, values in [('preference', [x['preference_score'] for x in prefs]),
                              ('nutrition', [x['nutrition_score'] for x in attrs]),
                              ('speed', [-x['duration_minutes'] for x in attrs])]:
-            comp[name] = 'equal' if abs(values[0] - values[1]) <= 1e-9 else 'A' if values[0] > values[1] else 'B'
+            comp[name] = None if values[0] is None else 'equal' if abs(values[0] - values[1]) <= 1e-9 else 'A' if values[0] > values[1] else 'B'
         valid = [a['candidate'] for a in attrs if a['feasible']]
         active = [comp[k] for k in p['objectives'] if comp[k] != 'equal']
         if not valid:

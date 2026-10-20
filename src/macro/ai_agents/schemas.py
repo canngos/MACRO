@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from macro.shared.benchmark_policy import GROUPS
 
-SCHEMA_VERSION = "benchmark-assessment-v1"
+SCHEMA_VERSION = "benchmark-assessment-v2"
 
 Comparison = Literal["A", "B", "equal"]
 
@@ -16,7 +16,7 @@ class StrictModel(BaseModel):
 
 class PreferenceFinding(StrictModel):
     candidate: Literal["A", "B"]
-    preference_score: float = Field(ge=0, le=1)
+    preference_score: float | None = Field(ge=0, le=1)
     evidence: list[str]
 
 
@@ -56,7 +56,7 @@ class BenchmarkAttributeFinding(AttributeFinding):
 
 class BenchmarkPreferenceAssessment(StrictModel):
     findings: list[PreferenceFinding]
-    preference_comparison: Comparison
+    preference_comparison: Comparison | None
     priorities: list[Objective] | None
     rationale: str
 
@@ -72,7 +72,7 @@ class BenchmarkSingleAssessment(StrictModel):
     preferences: list[PreferenceFinding]
     attributes: list[BenchmarkAttributeFinding]
     explanations: list[ExplanationFinding]
-    preference_comparison: Comparison
+    preference_comparison: Comparison | None
     nutrition_comparison: Comparison
     speed_comparison: Comparison
     priorities: list[Objective] | None
@@ -103,7 +103,7 @@ def evidence_pointers(evidence):
 
 def response_schema(role, evidence=None):
     """Wire schema requires both candidate keys; saved assessments retain the list format."""
-    schema = schemas_for(evidence)[role].model_json_schema()
+    schema = SCHEMAS[role].model_json_schema()
     for key in assessment_groups(role):
         finding_schema = schema["properties"][key]["items"]
         schema["properties"][key] = {
@@ -169,12 +169,18 @@ def validate_assessment(role, raw, evidence):
     if errors:
         raise AssessmentValidationError(errors, raw)
     try:
-        parsed = schemas_for(evidence)[role].model_validate(value)
+        parsed = SCHEMAS[role].model_validate(value)
     except ValidationError as exc:
         errors = [{"code": error["type"], "field": "/" + "/".join(map(str, error["loc"])),
                    "message": error["msg"]} for error in exc.errors(include_input=False, include_context=False, include_url=False)]
         raise AssessmentValidationError(errors, raw) from None
     result = parsed.model_dump()
+    if role in ("single", "preference"):
+        active = "preference" in evidence["profile"]["objectives"]
+        group = result["preferences" if role == "single" else "findings"]
+        if any((f["preference_score"] is not None) != active for f in group) or ((result["preference_comparison"] is not None) != active):
+            errors.append({"code": "inactive_objective", "field": "/preference_comparison",
+                           "message": "Preference scores and comparison must be null exactly when preference is inactive."})
     if "priorities" in result and result["priorities"] is not None:
         priorities = result["priorities"]
         if len(set(priorities)) != len(priorities) or set(priorities) != set(evidence["profile"]["objectives"]):
