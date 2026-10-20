@@ -5,6 +5,7 @@ import json
 import random
 from collections import Counter
 from pathlib import Path
+from macro.shared.io import artifact_matches
 
 from macro.shared.benchmark_policy import GROUPS, POLICY_VERSION, evaluate_case, validate_recipe
 from macro.shared.io import digest, file_hash, read_json, read_jsonl, write_json, write_jsonl
@@ -173,7 +174,7 @@ def generate(subset, out, config, pilot=None):
     source = subset / "recipes.jsonl"
     source_hash = file_hash(source)
     audit = read_json(subset / "audit.json")
-    if source_hash != audit["recipes_sha256"]:
+    if not artifact_matches(source, audit["recipes_sha256"], legacy_newlines=audit.get("schema_version") == "dataset-v1"):
         raise ValueError("Subset hash mismatch")
     dataset_config = read_json(subset / "config.json")
     if digest(dataset_config) != audit["config_sha256"]:
@@ -273,9 +274,9 @@ def generate(subset, out, config, pilot=None):
                 "policy_code_sha256": file_hash(Path(__file__).parents[1] / "shared" / "benchmark_policy.py"),
                 "hashes": hashes, "selection_attempts": dict(attempts), "rejections": dict(rejections),
                 "splits": {s: split_summary(cases_by_split[s], refs_by_split[s]) for s in ["dev", "test"]},
-                "validation": validation, "variants": "concise factual base only; four-variant package pending",
+                "validation": validation, "variants": "concise factual base only; explanation variants outside RQ1/RQ2 scope",
                 "split_inheritance": "All future variants and A/B orders inherit the base case split",
-                "execution": "No LLM calls; current historical pilot runner is not compatible with this policy/schema"}
+                "execution": "No LLM calls; evaluate with the matching benchmark judge configuration"}
     write_json(out / "manifest.json", manifest)
     write_json(out / "validation.json", validation)
     lines = ["# Draft development and final-evaluation benchmark", "",
@@ -292,7 +293,7 @@ def generate(subset, out, config, pilot=None):
               "- Profile and recipe fields contain all evidence required by benchmark-policy-v1. Unknown dietary/hidden composition requirements are excluded.",
               "- This is a deliberately stratified diagnostic benchmark, not a representative sample of natural user traffic.",
               "- No LLM requests or model results were generated. References were checked against the deterministic policy in both orders.",
-              "- Pending: source/manual review, explanation variants and reviews, length/surface leakage checks and judge/runner/schema integration.",
+              "- Pending: source/manual review and length/surface leakage checks. Human case review remains blind to LLM judgments. Explanation variants are outside RQ1/RQ2 scope.",
               "- Hashes establish artifact identity, not a completed test freeze. Do not claim final evaluation until outstanding checks pass and configuration is frozen.", ""]
     (out / "README.md").write_text("\n".join(lines), encoding="utf-8")
     print(json.dumps({"splits": manifest["splits"], "validation": validation}), flush=True)
@@ -306,7 +307,10 @@ def verify_saved(out):
     if digest(config) != manifest["config_sha256"]:
         raise ValueError("Configuration hash mismatch")
     for path, expected in manifest["hashes"].items():
-        if file_hash(out / path) != expected:
+        from macro.shared.io import artifact_matches
+        # The two committed draft packages hashed CRLF checkout bytes. Accept only
+        # the equivalent LF/CRLF serialization; every other byte change still fails.
+        if not artifact_matches(out / path, expected, legacy_newlines=manifest["version"] in ("benchmark-v1", "benchmark-v2")):
             raise ValueError("Artifact hash mismatch: " + path)
     if manifest["policy_version"] != POLICY_VERSION:
         raise ValueError("Policy version mismatch")

@@ -5,14 +5,14 @@ from pathlib import Path
 from urllib.parse import quote
 
 from macro.shared.io import read_json, read_jsonl
-from macro.shared.policy import compare, swapped
+from macro.shared.comparison import compare, swapped
 from macro.ai_agents.prompts import visible_case
 
 
 LABELS = {"single": "Single judge", "preference": "Preference judge",
           "attribute": "Attribute judge", "explanation": "Explanation judge"}
 FIELDS = {"preference_score": "Preference score", "feasible": "Feasible",
-          "violations": "Constraint violations", "nutrition_score": "Nutrition score",
+          "violations": "Constraint violations", "nutrition_score": "Nutrition score", "duration_minutes": "Recorded duration (minutes)",
           "supported": "Explanation supported", "relevant_tradeoffs_disclosed": "Trade-offs disclosed",
           "issues": "Explanation issues"}
 CSS = """
@@ -107,8 +107,9 @@ def diagnostic_notes(assessment, case):
         if slot not in case["recommendations"] or "violations" not in finding:
             continue
         recipe = next(r for r in case["candidate_pool"] if r["id"] == case["recommendations"][slot]["recipe_id"])
-        if "duration" in finding["violations"] and recipe["duration_minutes"] <= case["profile"]["max_duration_minutes"] + 1e-9:
-            notes.append(f"{slot}: reported a duration violation, but {recipe['duration_minutes']} minutes is within the {case['profile']['max_duration_minutes']}-minute limit.")
+        cap = case["profile"].get("hard_max_duration_minutes", case["profile"].get("max_duration_minutes"))
+        if "duration" in finding["violations"] and (cap is None or recipe["duration_minutes"] <= cap + 1e-9):
+            notes.append(f"{slot}: reported a duration violation, but the supplied duration does not exceed an active hard limit.")
     return notes
 
 
@@ -121,7 +122,7 @@ def role_card(record, role, case, prefix):
     notes = diagnostic_notes(assessment, case)
     if notes:
         parts.append('<div class="alert"><strong>Report diagnostics</strong><ul>' + ''.join(f'<li>{h(x)}</li>' for x in notes) + '</ul><small>These checks do not change the judge’s response or recorded outcome.</small></div>')
-    for key in ["decision", "preference_comparison", "nutrition_comparison", "priority"]:
+    for key in ["decision", "preference_comparison", "nutrition_comparison", "speed_comparison", "priority", "priorities"]:
         if key in assessment:
             parts.append(f'<span class="badge">{h(key.replace("_", " "))}: {h(assessment[key])}</span>')
     if assessment.get("rationale"):
@@ -165,8 +166,8 @@ def render_report(run_dir, report=None):
     cost = report["costs"]
     parts = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
              '<title>MACRO · ' + h(run_dir.name) + '</title><style>' + CSS + '</style></head><body><main>',
-             '<div class="eyebrow">MACRO / Pilot evaluation</div><h1>Judge decision report</h1>',
-             f'<p class="muted">Run {h(run_dir.name)} · {h(manifest["mode"])} · {h(manifest["config"].get("model"))}</p>',
+             '<div class="eyebrow">MACRO / Evaluation</div><h1>Judge decision report</h1>',
+             f'<p class="muted">Run {h(run_dir.name)} · {h(manifest["mode"])} · {h(manifest["config"].get("provider", "openai"))} · {h(manifest["config"].get("model"))}</p>',
              '<p class="muted">' + h(report["warning"]) + '</p><div class="stats">']
     for label, value in [("Cases", len(cases)), ("API requests", cost["model_calls"]), ("Total tokens", f'{cost["total_tokens"]:,}'), ("Retry requests", cost["retry_attempt_calls"])]:
         parts.append(f'<div class="stat"><span class="muted">{h(label)}</span><strong>{h(value)}</strong></div>')
@@ -180,13 +181,22 @@ def render_report(run_dir, report=None):
         stable = metric["candidate_order_stability"]
         overview.append([h("Single judge" if system == "single" else "Specialist panel"),
                          h(f'{coverage["correct"]}/{coverage["total"]}'), h(f'{correct}/{total}'),
-                         h(metric["outcomes"].get("unresolved", 0)), h(f'{stable["correct"]}/{stable["total"]}'),
+                         h(metric["outcomes"].get("unresolved", 0) + metric["outcomes"].get("insufficient_information", 0)), h(f'{stable["correct"]}/{stable["total"]}'),
                          h(json.dumps(metric["diagnostic_counts"])),
                          h(f'{metric["comparison_consistency"]["evaluations_with_warnings"]}/{metric["comparison_consistency"]["checked_evaluations"]}'
                            if metric.get("comparison_consistency", {}).get("checked_evaluations") else "Not recorded")])
     parts.append(table(["System", "Completed evaluations", "Correct decisions", "Unresolved", "Stable order pairs", "Failures", "Comparison warnings / checked"], overview))
     parts.append('<p class="muted">Order stability means the same recipe or outcome after swapping A/B; repeated unresolved outcomes can be stable and incorrect. Order variants are repeated observations, not independent cases.</p>')
     parts.append(f'<p>Summed API latency: {cost["latency_seconds_sum"]:.2f} seconds · Requests without usage: {h(cost["calls_without_usage"])} · Tool executions: {h(cost["tool_executions"])} · Currency estimate: {h(cost["currency_estimate"])}</p>')
+    if report.get("costs_by_system"):
+        parts.append(table(["System", "Requests", "Input tokens", "Output tokens", "Summed latency (s)"],
+            [[h(s), h(c["model_calls"]), h(c["prompt_tokens"]), h(c["completion_tokens"]), h(round(c["latency_seconds_sum"], 2))]
+             for s, c in report["costs_by_system"].items()]))
+    if report.get("raw_metrics"):
+        parts.append('<p>Primary decisions use the shared hard-constraint guardrail. Constraint precision/recall uses raw judge findings.</p>')
+        parts.append(table(["System", "Correct before guardrail", "Decisions changed by guardrail"],
+            [[h(s), h(str(sum(x["correct"] for x in m["accuracy_by_type"].values())) + '/' + str(sum(x["total"] for x in m["accuracy_by_type"].values()))),
+              h(report["guardrails"][s]["changed_decisions"])] for s, m in report["raw_metrics"].items()]))
     parts.append('<p><a href="summary.json">Full metrics JSON</a> · <a href="report.md">Markdown summary</a></p></section>')
     parts.append('<nav class="case-nav" aria-label="Cases">' + ''.join(f'<a href="#case-{i}">Case {i + 1}</a>' for i in range(len(cases))) + '</nav>')
     for i, original in enumerate(cases):
@@ -199,7 +209,7 @@ def render_report(run_dir, report=None):
             for slot in ["A", "B"]:
                 recommendation = case["recommendations"][slot]
                 recipe = next(r for r in case["candidate_pool"] if r["id"] == recommendation["recipe_id"])
-                parts.append(f'<div class="candidate"><h4>{slot} · {h(recipe["title"])}</h4><p class="muted">Recipe {h(recipe["id"])}</p><p>{h(recipe["duration_minutes"])} minutes · Nutrition {h(recipe["nutrition_score"])}</p><p>Ingredient groups: {h(recipe["canonical_ingredients"])}</p><p>{h(recommendation["explanation"])}</p></div>')
+                parts.append(f'<div class="candidate"><h4>{slot} · {h(recipe.get("title", "Candidate " + slot))}</h4><p class="muted">Recipe {h(recipe["id"])}</p><p>{h(recipe["duration_minutes"])} minutes · Nutrition {h(recipe["nutrition_score"])}</p><p>Ingredient groups: {h(recipe["canonical_ingredients"])}</p><p>{h(recommendation["explanation"])}</p></div>')
             parts.append('</div>')
             result_rows = []
             for system in ["single", "specialists"]:
@@ -207,17 +217,20 @@ def render_report(run_dir, report=None):
                 decision = result.get("decision")
                 recipe_id = case["recommendations"].get(decision, {}).get("recipe_id")
                 result_rows.append([h("Single judge" if system == "single" else "Specialist panel"), badge(result.get("status", "missing")), h(decision), h(recipe_id), h(result.get("trace", []))])
+                if "verified_constraints" in result:
+                    parts.append(disclosure(system + " · raw decision and verified constraints",
+                        '<pre>' + h(pretty({k: result.get(k) for k in ("raw_decision", "decision", "guardrail_changed_decision", "verified_constraints")})) + '</pre>'))
             parts.append(table(["System", "Status", "Recorded decision", "Chosen recipe ID", "Coordinator trace"], result_rows))
             panel = evaluations.get((cid, order, "specialists"), {})
             if "derived_comparisons" in panel:
-                parts.append('<p class="muted">Coordinator: feasibility first, then comparisons calculated from specialist-reported scores. These scores and feasibility findings are not independently verified by the coordinator.</p>')
+                parts.append('<p class="muted">Coordinator: hard constraints verified from public facts; then active-objective comparisons derived from specialist-reported scores and declared user priorities. Scores remain model-reported.</p>' if "verified_constraints" in panel else '<p class="muted">Historical pilot: feasibility and scores are model-reported, not independently verified by the coordinator.</p>')
                 parts.append(table(["Criterion", "Judge reported", "Coordinator calculated"],
                     [[h(field.replace("_comparison", "").capitalize()), h(panel["reported_comparisons"][field]), h(value)]
                      for field, value in panel["derived_comparisons"].items()]))
             if panel.get("comparison_diagnostics"):
                 parts.append('<div class="alert"><strong>Coordinator comparison warnings</strong><ul>' + ''.join(
                     f'<li>{h(d["criterion"])}: judge reported {h(d["reported"])}, scores imply {h(d["derived"])}.</li>'
-                    for d in panel["comparison_diagnostics"]) + '</ul>The recorded decision follows reported feasibility and calculated comparisons. The original responses are preserved below.</div>')
+                    for d in panel["comparison_diagnostics"]) + '</ul>The original responses are preserved below.</div>')
             parts.append(disclosure("Supplied facts · evidence link destinations", '<div class="scroll"><table class="facts"><thead><tr><th>Evidence path</th><th>Supplied value</th></tr></thead><tbody>' + ''.join(facts(visible_case(case), prefix)) + '</tbody></table></div>'))
             for role in LABELS:
                 attempts = sorted(roles.get((cid, order, role), []), key=lambda item: item[1].get("attempt", 0))

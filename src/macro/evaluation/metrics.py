@@ -1,7 +1,7 @@
 """Accuracy, constraint detection, consistency and candidate-order metrics."""
 from collections import Counter
 
-from macro.shared.policy import canonical_decision, swapped
+from macro.shared.comparison import canonical_decision, swapped
 
 
 def fraction(numerator, denominator):
@@ -20,7 +20,7 @@ def compute(cases, references, results):
         tp = fp = fn = tn = checked_flags = 0
         subtypes = {name: {key: 0 for key in ["tp", "fp", "fn", "tn", "observed_flags"]}
                     for name in ["duration", "ingredient_exclusion"]}
-        types = {k: [0, 0] for k in ["constraint", "dominance", "tradeoff"]}
+        types = {k: [0, 0] for k in sorted({"constraint", "dominance", "tradeoff"} | {r["case_type"] for r in references})}
         alignment = [0, 0]
         unresolved_expected = [0, 0]
         outcomes = Counter()
@@ -28,7 +28,8 @@ def compute(cases, references, results):
         for original in cases:
             cid = original["case_id"]
             ref = refs[cid]
-            expected_canonical = canonical_decision(original, ref["decision"])
+            reference_decision = ref.get("verdict", ref.get("decision"))
+            expected_canonical = canonical_decision(original, reference_decision)
             decisions = []
             for order in ["original", "reversed"]:
                 case = original if order == "original" else swapped(original)
@@ -76,10 +77,12 @@ def compute(cases, references, results):
                 types[ref["case_type"]][1] += 1
                 correct = bool(result and result["status"] == "ok" and decisions[-1] == expected_canonical)
                 types[ref["case_type"]][0] += correct
-                if ref["case_type"] == "tradeoff" and original["profile"]["priority"] != "unspecified":
+                profile = original["profile"]
+                has_priorities = profile["priorities"] is not None if "priorities" in profile else profile["priority"] != "unspecified"
+                if ref["case_type"] == "tradeoff" and has_priorities:
                     alignment[1] += 1
                     alignment[0] += correct
-                if ref["decision"] == "unresolved":
+                if reference_decision in ("unresolved", "insufficient_information"):
                     unresolved_expected[1] += 1
                     # An inconsistent assessment is not a correct insufficient-priority explanation.
                     unresolved_expected[0] += bool(correct and result and result["status"] == "ok")
@@ -94,11 +97,12 @@ def compute(cases, references, results):
             "constraint_detection": {"unit": "candidate violation flag, both orders (repeated observations)",
                 "tp": tp, "fp": fp, "fn": fn, "tn": tn, "observed_flags": checked_flags, "planned_flags": expected * 2,
                 "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None,
-                "note": "Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."},
+                "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."},
             "declared_priority_alignment": fraction(*alignment),
             "constraint_subtype_diagnostics": subtypes,
             "correct_insufficient_priority_outcomes": fraction(*unresolved_expected),
-            "unresolved_frequency": {"count": outcomes["unresolved"], "completed": coverage, "rate": outcomes["unresolved"] / coverage if coverage else None},
+            "unresolved_frequency": {"count": outcomes["unresolved"] + outcomes["insufficient_information"], "completed": coverage,
+                "rate": (outcomes["unresolved"] + outcomes["insufficient_information"]) / coverage if coverage else None},
             "outcomes": dict(outcomes), "candidate_order_stability": fraction(stable, len(cases)),
             "complete_order_pairs": stable_complete}
     return report

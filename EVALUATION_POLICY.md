@@ -1,6 +1,6 @@
 # Evaluation policy: benchmark-policy-v1
 
-Defined 18 October 2026 for the new benchmark. The allocation was revised on 19 October 2026 to **400 final-test base cases plus 120 separate development cases (520 total)**, with equal coverage of the five case categories (80 test and 24 dev each). This supersedes the earlier 600-test-case draft, which is retained as benchmark-v1. Counts change the benchmark configuration, not these decision rules. This is an initial scoped specification with executable references in `src/macro/shared/benchmark_policy.py`. It does not modify the historical `pilot-v1` policy or existing judge prompts. New judge prompts and runner must explicitly adopt this version before evaluation. No new benchmark freeze or judge results are claimed here.
+Defined 18 October 2026 for the new benchmark. The allocation was revised on 19 October 2026 to **400 final-test base cases plus 120 separate development cases (520 total)**, with equal coverage of the five case categories (80 test and 24 dev each). This supersedes the earlier 600-test-case draft, which is retained as benchmark-v1. Counts change the benchmark configuration, not these decision rules. Executable references are in `src/macro/shared/benchmark_policy.py`. The active prompts, schemas and fixed coordinator implement this version; historical pilot files are archival. No real benchmark inference or completed human review is claimed here.
 
 ## 1. Evaluation target and source of truth
 
@@ -55,6 +55,16 @@ V1 soft time means **shorter is better**, without a target threshold or toleranc
 All numeric comparisons use absolute tolerance 1e-9 solely for floating-point arithmetic, including the hard time boundary. This does not represent a meaningful cooking-time allowance. There is no weighted sum; priority outranks improvement magnitude.
 
 ## 5. Decision order
+
+### Implemented benchmark coordinator
+
+The benchmark runner uses the single coordinator implementation in `src/macro/coordinator/aggregation.py`. This is a fixed Python coordinator, not another model call. It receives public case evidence and three validated, independent specialist assessments; private reference answers are not inputs.
+
+Hard constraints are verified directly from public duration and canonical ingredient facts. The coordinator then derives comparisons from specialist-reported preference/nutrition/duration values, using only the profile's active objectives. It follows the decision order below and reads the priority ordering explicitly declared in the public profile. An incorrect priority extraction or comparison label is recorded as a diagnostic, not treated as a vote. Soft scores remain model-reported; aggregation does not guarantee correct LLM findings.
+
+Explanation support/disclosure is a separate diagnostic and cannot overturn hard constraints or objective precedence. A missing or invalid specialist assessment produces `technical_failure`, not `insufficient_information`.
+
+The same hard-constraint verification applies to the single judge. Both systems preserve raw decisions and raw feasibility findings. Constraint precision/recall uses those raw findings, while primary decision accuracy includes the common verification step; `raw_metrics` reports decisions before that step. This compares complete evaluator designs, including the panel's arithmetic aggregation and additional model calls.
 
 1. Apply hard feasibility.
 2. If both feasible and equal on every active objective, return `tie`.

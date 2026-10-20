@@ -1,8 +1,8 @@
-"""AG2 agent setup and paid provider adapter. Imports never initialize a model."""
+"""AG2 adapter for OpenAI, DeepInfra and local Ollama. Imports never initialize a model."""
 import json
 import time
 
-from macro.shared.config import openai_api_key
+from macro.shared.config import OLLAMA_BASE_URL, OPENAI_BASE_URL, DEEPINFRA_BASE_URL, openai_api_key, deepinfra_api_key
 from .prompts import prompt
 from .schemas import SCHEMA_VERSION, response_schema, validate_assessment
 from .tools import calculate
@@ -12,12 +12,33 @@ def make_agent(role, config, api_key, evidence=None):
     from autogen import ConversableAgent, LLMConfig
     schema = response_schema(role, evidence)
     system, _ = prompt(role, evidence or {})
+    provider = config.get("provider", "openai")
+    endpoints = {"ollama": OLLAMA_BASE_URL, "openai": OPENAI_BASE_URL, "deepinfra": DEEPINFRA_BASE_URL}
+    if provider not in endpoints:
+        raise ValueError("Unsupported LLM provider")
+    local = provider == "ollama"
+    options = {"api_type": "openai", "model": config["model"],
+               "api_key": "ollama" if local else api_key,
+               "base_url": endpoints[provider],
+               "max_retries": 0, "timeout": config["timeout_seconds"], "response_format": schema}
+    if local:
+        # AG2's price table covers hosted models; local inference has no API token fee.
+        options.update(max_tokens=config["max_completion_tokens"], temperature=config.get("temperature", 0),
+                       price=[0, 0])
+    elif provider == "deepinfra":
+        options.update(max_tokens=config["max_completion_tokens"], temperature=config.get("temperature", 0))
+        pricing = config.get("pricing")
+        if pricing:
+            # AG2 expects USD per thousand tokens; our reports use per million.
+            options["price"] = [pricing["input_per_million"] / 1000, pricing["output_per_million"] / 1000]
+    else:
+        options.update(reasoning_effort=config["reasoning_effort"],
+                       max_completion_tokens=config["max_completion_tokens"], store=False)
     agent = ConversableAgent(name=role + "_judge", system_message=system,
         human_input_mode="NEVER", code_execution_config=False,
-        llm_config=LLMConfig({"api_type": "openai", "model": config["model"], "api_key": api_key,
-            "max_retries": 0, "timeout": config["timeout_seconds"], "reasoning_effort": config["reasoning_effort"],
-            "max_completion_tokens": config["max_completion_tokens"], "response_format": schema,
-            "store": False}, cache_seed=None))
+        # AG2 0.14.1 replaces an entry's zero temperature with the application
+        # default; set both levels so zero survives into the HTTP request.
+        llm_config=LLMConfig(options, cache_seed=None, temperature=options.get("temperature")))
     agent.register_for_llm(name="calculate", description=calculate.__doc__)(calculate)
     return agent
 
@@ -28,7 +49,8 @@ class LiveProvider:
 
     def assess(self, role, evidence, tag, feedback=None):
         self.recorder.reserve(self.config["max_tool_rounds"] + 1)
-        key = openai_api_key()
+        provider = self.config.get("provider", "openai")
+        key = "ollama" if provider == "ollama" else deepinfra_api_key() if provider == "deepinfra" else openai_api_key()
         # New agent and message history for every role/case/order/attempt.
         agent = make_agent(role, self.config, key, evidence)
         system, user = prompt(role, evidence)
@@ -90,7 +112,8 @@ class LiveProvider:
             raw = reply.get("content") if isinstance(reply, dict) else reply
             parsed = validate_assessment(role, raw, evidence)
             return {"assessment": parsed, "raw": raw, "system_prompt": system, "user_prompt": user,
-                    "tool_calls": tool_log, "status": "ok", "provider": "ag2_openai", "schema_version": SCHEMA_VERSION}
+                    "tool_calls": tool_log, "status": "ok", "provider": "ag2_" + provider,
+                    "schema_version": SCHEMA_VERSION}
         raise ValueError("No assessment returned")
 
 

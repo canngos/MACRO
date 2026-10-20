@@ -3,13 +3,11 @@ import json
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from macro.shared.policy import ALIASES
+from macro.shared.benchmark_policy import GROUPS
 
-SCHEMA_VERSION = "pilot-v2"
+SCHEMA_VERSION = "benchmark-assessment-v1"
 
-Decision = Literal["A", "B", "tie", "unresolved", "neither_feasible"]
 Comparison = Literal["A", "B", "equal"]
-Priority = Literal["preference_first", "nutrition_first", "unspecified"]
 
 
 class StrictModel(BaseModel):
@@ -44,37 +42,46 @@ class ExplanationFinding(StrictModel):
     evidence: list[str]
 
 
-class PreferenceAssessment(StrictModel):
-    findings: list[PreferenceFinding]
-    preference_comparison: Comparison
-    priority: Priority
-    rationale: str
-
-
-class AttributeAssessment(StrictModel):
-    findings: list[AttributeFinding]
-    nutrition_comparison: Comparison
-    rationale: str
-
-
 class ExplanationAssessment(StrictModel):
     findings: list[ExplanationFinding]
     rationale: str
 
 
-class SingleAssessment(StrictModel):
-    preferences: list[PreferenceFinding]
-    attributes: list[AttributeFinding]
-    explanations: list[ExplanationFinding]
+Objective = Literal["preference", "nutrition", "speed"]
+
+
+class BenchmarkAttributeFinding(AttributeFinding):
+    duration_minutes: float = Field(gt=0)
+
+
+class BenchmarkPreferenceAssessment(StrictModel):
+    findings: list[PreferenceFinding]
     preference_comparison: Comparison
-    nutrition_comparison: Comparison
-    priority: Priority
-    decision: Decision
+    priorities: list[Objective] | None
     rationale: str
 
 
-SCHEMAS = {"single": SingleAssessment, "preference": PreferenceAssessment,
-           "attribute": AttributeAssessment, "explanation": ExplanationAssessment}
+class BenchmarkAttributeAssessment(StrictModel):
+    findings: list[BenchmarkAttributeFinding]
+    nutrition_comparison: Comparison
+    speed_comparison: Comparison
+    rationale: str
+
+
+class BenchmarkSingleAssessment(StrictModel):
+    preferences: list[PreferenceFinding]
+    attributes: list[BenchmarkAttributeFinding]
+    explanations: list[ExplanationFinding]
+    preference_comparison: Comparison
+    nutrition_comparison: Comparison
+    speed_comparison: Comparison
+    priorities: list[Objective] | None
+    decision: Literal["A", "B", "tie", "insufficient_information", "both_violate"]
+    rationale: str
+
+
+SCHEMAS = {"single": BenchmarkSingleAssessment, "preference": BenchmarkPreferenceAssessment,
+           "attribute": BenchmarkAttributeAssessment, "explanation": ExplanationAssessment}
 
 
 def assessment_groups(role):
@@ -112,7 +119,7 @@ def response_schema(role, evidence=None):
             if evidence is not None:
                 properties["evidence"]["items"]["enum"] = evidence_pointers(evidence)
         if "violations" in properties:
-            properties["violations"]["items"]["enum"] = ["duration"] + ["excluded:" + group for group in ALIASES]
+            properties["violations"]["items"]["enum"] = ["duration"] + ["excluded:" + group for group in sorted(GROUPS)]
     return schema
 
 
@@ -168,6 +175,11 @@ def validate_assessment(role, raw, evidence):
                    "message": error["msg"]} for error in exc.errors(include_input=False, include_context=False, include_url=False)]
         raise AssessmentValidationError(errors, raw) from None
     result = parsed.model_dump()
+    if "priorities" in result and result["priorities"] is not None:
+        priorities = result["priorities"]
+        if len(set(priorities)) != len(priorities) or set(priorities) != set(evidence["profile"]["objectives"]):
+            errors.append({"code": "priority_order", "field": "/priorities",
+                           "message": "Priorities must be null or order every active objective exactly once."})
     for key in assessment_groups(role):
         group = result[key]
         if len(group) != 2 or {f["candidate"] for f in group} != {"A", "B"}:
