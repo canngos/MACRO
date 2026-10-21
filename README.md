@@ -1,5 +1,7 @@
 # MACRO
 
+For the 50-case blinded human annotation packet, see [Human evaluation](HUMAN_EVALUATION.md).
+
 MACRO evaluates **two already selected recipe recommendations** against a user's requirements. It compares one structured AG2 judge with three independent specialists: preference, recipe attributes/constraints, and explanation quality. A fixed Python coordinator combines the specialists' findings; there are no discussion rounds.
 
 The current package, `data/benchmark-v2/`, contains **400 test cases and 120 separate development cases**. The test set has 80 cases each of constraint violations, dominance, trade-offs, ties and both recommendations violating constraints. The code uses one shared [evaluation policy](EVALUATION_POLICY.md), including speed when explicitly declared.

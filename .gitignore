@@ -9,5 +9,6 @@ tmp/
 pp_recipes/
 pp_recipes.zip
 results/
+human_evaluation/
 *.egg-info/
 docs/
