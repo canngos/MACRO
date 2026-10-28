@@ -22,4 +22,4 @@ See config.json for exact bounds, mapping and tolerances; audit.json for source/
 - Olive oil is an explicit non-match for whole-olive preference. Exclusions have the same bounded group semantics, not biological ingredient ancestry.
 - Empty normalization comments and mass checks reduce obvious errors but do not prove source truth. Automatic checks are not human validation.
 - Duration bounds, complete-field requirements and tracked-group coverage bias selection. Sampling is seeded uniform reservoir sampling over eligible recipes, not all HUMMUS.
-- This preparation command selects recipes only. The separate [benchmark generator](../../DATA_PREPARATION.md) constructs the 120 development and 400 test cases.
+- No 600-case generation or dev/test assignment has been performed by this command.

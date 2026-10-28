@@ -1,6 +1,6 @@
-# Current evaluation benchmark
+# Draft development and final-evaluation benchmark
 
-120 development cases and 400 final test cases. See the [data guide](../../DATA_PREPARATION.md) for construction and the [evaluation policy](../../EVALUATION_POLICY.md) for reference labels.
+120 development cases and 400 final test cases. Counts are configured independently.
 
 | Stratum | Development | Final test |
 |---|---:|---:|
@@ -20,9 +20,9 @@
 - private/*.references.jsonl are deterministic gold labels; private/source_map.json maps neutral recipe IDs to source evidence.
 - No recipe is reused across any base cases. Exact semantic profiles and recipes are disjoint between development and test.
 - Previously inspected pilot recipe IDs are excluded when configured. Review of source data is separate from inspecting test judge results.
-- Every case has a factual explanation template. Both candidate orders belong to the same base case; they are not independent cases. Explanation manipulation is outside the course scope.
+- Every case has a factual template only. Future explanation variants and order swaps must inherit its split; they are not additional independent cases.
 - Profile and recipe fields contain all evidence required by benchmark-policy-v1. Unknown dietary/hidden composition requirements are excluded.
 - This is a deliberately stratified diagnostic benchmark, not a representative sample of natural user traffic.
-- Generation made no model calls. References were checked against the deterministic policy in both orders. Completed model evaluations are described in [Results](../../RESULTS.md).
-- Generation manifests retain their original draft/pending status. Later agent-performed source, leakage and development checks are preserved in the [DeepSeek readiness review](../../readiness/deepseek-final-400/REVIEW.md); independent human annotation is a separate activity.
-- Hashes establish artifact identity, not factual correctness. Final inference requires a matching readiness record and its supporting files; see the [run guide](../../documentation/RUNNING.md#final-400-case-evaluation).
+- No LLM requests or model results were generated. References were checked against the deterministic policy in both orders.
+- Pending: source/manual review, explanation variants and reviews, length/surface leakage checks and judge/runner/schema integration.
+- Hashes establish artifact identity, not a completed test freeze. Do not claim final evaluation until outstanding checks pass and configuration is frozen.

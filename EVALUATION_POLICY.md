@@ -1,59 +1,111 @@
-# Evaluation policy
+# Evaluation policy: benchmark-policy-v1
 
-Policy identifier: `benchmark-policy-v1`. The task is to judge two fixed recipe recommendations against an explicit synthetic user profile.
+Defined 18 October 2026 for the new benchmark. The allocation was revised on 19 October 2026 to **400 final-test base cases plus 120 separate development cases (520 total)**, with equal coverage of the five case categories (80 test and 24 dev each). This supersedes the earlier 600-test-case draft, which is retained as benchmark-v1. Counts change the benchmark configuration, not these decision rules. Executable references are in `src/macro/shared/benchmark_policy.py`. The active prompts, schemas and fixed coordinator implement this version; historical pilot files are archival. No real benchmark inference or completed human review is claimed here.
 
-## Evidence and objectives
+## 1. Evaluation target and source of truth
 
-The profile specifies preferred and excluded ingredient groups, an optional maximum duration, active objectives and an optional ordered list of priorities. Priorities, when provided, order every active objective. Objective-list order is not a priority.
+Judge two fixed recipe recommendations against a synthetic user's explicit requirements. Do not generate or improve recommendations. Both methods receive identical recipe/profile evidence. The ground-truth recipe verdict is computed from the structured profile and dataset recipe attributes, not title, explanation style, model opinion or a hidden preference.
 
-The eight ingredient groups are tomato, broccoli, spinach, mushroom, onion, garlic, carrot and olive. A group cannot be both preferred and excluded. Only documented canonical groups are used; hidden ingredients and dietary requirements are not inferred.
+The data source is the versioned, provisionally prepared HUMMUS subset. Time is the supplied duration, not separately verified prep/cook/active time. Nutrition is the supplied normalized FSA dataset proxy (0-1 in steps of 0.125, higher preferred), not a health outcome. The other retained nutrient fields are supporting evidence, not additional objectives. Calorie/per-serving claims remain excluded until their source-unit and serving issues are resolved. Manual subset review remains pending; this policy does not certify source truth.
 
-| Criterion | Rule |
-|---|---|
-| Hard duration limit | Recorded duration must be at or below the stated maximum, if provided |
-| Ingredient exclusion | No excluded canonical group may occur |
-| Preference | Fraction of distinct preferred groups present; higher is better |
-| Nutrition | Supplied normalized HUMMUS FSA score; higher is better |
-| Speed | Shorter recorded recipe duration, only when explicitly active |
+## 2. Profile schema
 
-Nutrition is a dataset proxy, not a measured health outcome. Duration is the source recipe duration, not necessarily active preparation time. A hard time limit does not automatically activate speed as a soft objective. Numeric comparisons use tolerance `1e-9` for floating-point arithmetic.
+Every profile has exactly these fields:
 
-## Decision order
+```json
+{
+  "preferred_ingredients": ["garlic", "tomato"],
+  "excluded_ingredients": ["mushroom"],
+  "hard_max_duration_minutes": 30,
+  "objectives": ["preference", "nutrition", "speed"],
+  "priorities": ["nutrition", "speed", "preference"]
+}
+```
 
-1. **Hard constraints:** choose the only feasible candidate, or return `both_violate` if neither is feasible.
-2. **Equality:** if both are feasible and equal on all active objectives, return `tie`.
-3. **Dominance:** choose a candidate that is no worse on every active objective and strictly better on at least one. Priorities are unnecessary here.
-4. **Declared priorities:** for a genuine trade-off, select the winner on the first unequal objective in the declared priority order. There is no weighted sum.
-5. **Unresolved trade-off:** return `insufficient_information` when conflicting objectives have no declared priority ordering.
+- Ingredient names must be distinct members of the eight documented groups: tomato, broccoli, spinach, mushroom, onion, garlic, carrot, olive. A preferred ingredient cannot also be excluded. Contradictory profiles are invalid input rather than test examples.
+- `hard_max_duration_minutes` is a positive finite number or `null` for no hard time limit.
+- `objectives` declares one or more distinct active objectives. Their list order does not imply priority.
+- `priorities` is either a complete ordering of the active objectives (highest first), or `null` for no declared priorities. Partial, duplicate or contradictory orderings are rejected in v1, not silently completed.
+- Preferred ingredients must be nonempty exactly when the preference objective is active. No weights are inferred. Soft dislikes are not represented in v1; do not silently convert a dislike into a hard exclusion.
+- Natural-language requests generated later must express exactly this structured profile. Text/structure contradictions require correcting or rejecting the case before freeze. The current deterministic evaluator validates structured data; it does not parse free text.
 
-Outcomes are `A`, `B`, `tie`, `both_violate` and `insufficient_information`. Case categories are constraint, dominance, trade-off, tie control and both-violate control.
+## 3. Hard constraints
 
-| Example | Outcome |
-|---|---|
-| Maximum 20 minutes; A takes 22 and B takes 20, with no other violation | B |
-| A contains an excluded group; B exceeds the maximum duration | both_violate |
-| Both feasible; A has higher preference and nutrition, speed inactive | A dominates |
-| A has higher preference, B higher nutrition; no priorities | insufficient_information |
-| Same trade-off, nutrition has highest priority | B |
-| Equal preference/nutrition; A is faster but speed is inactive | tie |
+1. Excluded ingredient groups: a recipe fails when a declared excluded group appears in its documented canonical groups.
+2. Strict time: a recipe fails when duration exceeds the stated maximum. The boundary is allowed: 20 minutes satisfies a 20-minute maximum.
 
-## Coordinator and single judge
+Each failing recipe is infeasible regardless of its soft scores. If only one recipe is feasible, choose it. If both fail, return `both_violate`; do not choose the lesser violation. If neither fails, compare soft objectives.
 
-The [Python coordinator](src/macro/coordinator/aggregation.py) verifies hard constraints from public recipe facts. It derives soft comparisons from the specialists' reported preference, nutrition and duration values, using the profile's actual active objectives and priorities. Incorrect comparison labels or extracted priorities are diagnostics. There is no majority vote or discussion round.
+Exclusion means absence under the declared bounded mapping, not proven absence from a biological ingredient family or hidden packaged-food composition. In particular, the whole-olive group does not include olive oil. Allergy, vegetarian/vegan, religious dietary and hidden sub-ingredient cases are outside v1 until separately verified evidence and rules exist. This is a documented scope reduction from the full plan, not completion of those requirements.
 
-The single judge receives the same hard-constraint guardrail. Its soft-objective decision remains model-generated. Raw decisions and findings are preserved for both systems. Comparing the two systems therefore includes the panel's fixed aggregation and additional model calls, as well as specialization.
+## 4. Soft objectives
 
-Explanation support and trade-off disclosure are recorded separately and do not change the final choice. All three specialist outputs must nevertheless be valid; otherwise the panel returns `technical_failure`.
+| Objective | Computation | Preferred direction |
+| --- | --- | --- |
+| preference | Number of distinct preferred groups present / number of distinct preferred groups declared | Higher |
+| nutrition | Supplied normalized FSA score | Higher |
+| speed | Source duration in minutes; represented as negative minutes internally | Lower duration / higher internal score |
 
-## References and scoring
+Ingredient quantities and repeated occurrences do not change preference scores. No title, popularity, rating, serving size or explanation-quality bonus is used.
 
-[The reference policy](src/macro/shared/benchmark_policy.py) computes expected labels from public facts. Labels are stored separately and withheld from judges.
+Speed is active only if explicitly declared. A strict time limit does not automatically make the shorter feasible recipe better. Conversely, speed can be active without a hard limit (a soft preference for quicker recipes). A profile may deliberately declare both a hard maximum and speed: first enforce the maximum, then prefer shorter duration among feasible recipes when the comparison reaches that objective.
 
-- Primary accuracy includes the shared hard-constraint guardrail. Raw accuracy uses decisions before that guardrail.
-- Constraint precision and recall use raw candidate feasibility findings from completed evaluations. Report their coverage; missing assessments are not correct detections.
-- Binary infeasibility, violation type and the exact excluded ingredient are different measures. A correct infeasible flag can still name the wrong reason.
-- Overall accuracy includes technical failures in the planned denominator.
-- Candidate-order stability compares canonical recipe choices across both orders; two equally wrong answers can still be stable.
-- Both orders belong to one base case, not two independent samples.
+V1 soft time means **shorter is better**, without a target threshold or tolerance band. A request such as "around 30 minutes is equally good" needs a different explicit formula and must not be generated under this version.
 
-Explanation manipulation and discussion rounds are outside the reduced RQ1/RQ2 scope.
+All numeric comparisons use absolute tolerance 1e-9 solely for floating-point arithmetic, including the hard time boundary. This does not represent a meaningful cooking-time allowance. There is no weighted sum; priority outranks improvement magnitude.
+
+## 5. Decision order
+
+### Implemented benchmark coordinator
+
+The benchmark runner uses the single coordinator implementation in `src/macro/coordinator/aggregation.py`. This is a fixed Python coordinator, not another model call. It receives public case evidence and three validated, independent specialist assessments; private reference answers are not inputs.
+
+Hard constraints are verified directly from public duration and canonical ingredient facts. The coordinator then derives comparisons from specialist-reported preference/nutrition/duration values, using only the profile's active objectives. It follows the decision order below and reads the priority ordering explicitly declared in the public profile. An incorrect priority extraction or comparison label is recorded as a diagnostic, not treated as a vote. Soft scores remain model-reported; aggregation does not guarantee correct LLM findings.
+
+Explanation support/disclosure is a separate diagnostic and cannot overturn hard constraints or objective precedence. A missing or invalid specialist assessment produces `technical_failure`, not `insufficient_information`.
+
+The same hard-constraint verification applies to the single judge. Both systems preserve raw decisions and raw feasibility findings. Constraint precision/recall uses those raw findings, while primary decision accuracy includes the common verification step; `raw_metrics` reports decisions before that step. This compares complete evaluator designs, including the panel's arithmetic aggregation and additional model calls.
+
+1. Apply hard feasibility.
+2. If both feasible and equal on every active objective, return `tie`.
+3. If one is no worse on every active objective and better on at least one, it Pareto-dominates: choose it. Priorities are not needed.
+4. Otherwise there is a genuine trade-off. With an explicit priority ordering, compare its first objective; if equal, continue to the next. Choose the first unequal objective's winner (lexicographic priority).
+5. For a genuine trade-off without priorities, return `insufficient_information`. Do not invent weights, force a winner or call it a tie.
+
+The final verdict vocabulary is `A`, `B`, `tie`, `insufficient_information`, `both_violate`. Pilot `unresolved` and `neither_feasible` correspond to the latter two meanings but remain unchanged in historical artifacts.
+
+Case categories are `constraint`, `dominance`, `tradeoff`, `control_tie`, and `both_violate`. Trade-offs can be resolved or unresolved. Correct-vs-correct controls in v1 are two distinct feasible recipes equal on every active objective; merely being feasible does not imply a tie. Case-generation balance and control quotas are separate benchmark-design decisions.
+
+## 6. Explanation assessment is a separate output
+
+Keep the recipe/profile evidence fixed across explanation variants. Judge factual claims against evidence and evaluate whether relevant disadvantages are disclosed. A polished false explanation does not change the deterministic recipe verdict. A truthful description of an infeasible recipe is not itself false.
+
+The later variant generator must produce structured claim annotations alongside text: targeted candidate and evidence field, claim type, asserted value, evidence-supported value, factuality and omitted disadvantage when applicable. Manually review a sample of variants and every false-claim variant. Do not claim that the current numeric policy automatically understands arbitrary explanation text; a claim annotation/checking implementation is still required.
+
+- Concise and long-equivalent versions have the same factual content and recipe verdict.
+- Persuasive omissions alter disclosure, not recipe facts or reference preference.
+- A false claim is marked as a content change, with a specific contradiction to recipe/profile evidence; the recipe preference reference remains unchanged.
+- Report explanation factuality/disclosure and recipe accuracy separately. Discussion may correct reported facts, but cannot supply missing user priorities.
+
+## 7. Validity and execution failures
+
+Missing/nonfinite attributes, unknown ingredient groups, unrecognized nutrition metrics, invalid FSA values, contradictory profiles, duplicate recipe IDs and broken recommendation references are invalid benchmark inputs. The deterministic validator raises an error; these cases must be repaired or removed before freeze. Missing data is not a genuine preference trade-off.
+
+Judge execution/schema failures are technical failures, not `insufficient_information`, ties or safe recipes. Preserve them and include them in planned evaluation coverage and accuracy denominators. Never drop them silently. Judge response schema/runner integration remains separate from this reference policy.
+
+Reference outputs contain version, verdict, category, per-candidate feasibility and violations, active objective scores, comparisons, reasons and evidence pointers. Gold labels and categories remain private; public judge inputs contain only profile, request, recipe evidence and recommendation text. Each experiment must retain policy, data, prompt and configuration identities. No test-set result may influence subsequent development without acknowledging reuse.
+
+## 8. Worked examples
+
+| Situation | Result |
+| --- | --- |
+| Hard maximum 20; A is 22 minutes, B is 20; B has no other violation | B, regardless of A's nutrition/preference |
+| A contains excluded mushroom; B exceeds the hard time limit | both_violate |
+| Both feasible; A preference 1 and FSA 0.75, B preference 0.5 and FSA 0.5; speed inactive | A dominates |
+| Both feasible; A matches more preferences, B has higher FSA; no priorities | insufficient_information |
+| Same trade-off, priorities nutrition then preference | B |
+| Both feasible; both FSA 0.5; A faster but B better preference match; priorities nutrition, speed, preference | A after equal nutrition |
+| Hard maximum 30; A is 20 and B is 25; equal active preference/nutrition, speed inactive | tie |
+| Same recipes, speed active and all other active objectives equal | A |
+
+Before case generation, confirm that these scoped semantics match the study questions. Extending vocabulary, dietary evidence, objective formulas or priority semantics requires a new version and regenerated labels; never silently alter a frozen benchmark.

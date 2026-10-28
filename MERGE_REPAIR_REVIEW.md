@@ -1,7 +1,5 @@
 # Merge repair review
 
-Historical development record. Commands and status statements below describe that earlier stage. Use the [current run guide](../RUNNING.md) for execution.
-
 **Date:** 20 October 2026  
 **Merged revision reviewed:** `a80f8d7`  
 **Historical development run:** `deepseek-benchmark-dev-120-001`

@@ -1,7 +1,5 @@
 # Run the MACRO experiment with DeepSeek
 
-Historical development record. Commands and status statements below describe that earlier stage. Use the [current run guide](../RUNNING.md) for execution.
-
 This manual is for **Windows PowerShell** on this computer. Open a PowerShell terminal in Windows Terminal, VS Code, or PyCharm. Copy each command block in order, without copying the surrounding triple backticks. Keep the same terminal open so its variables remain available. If any command fails, stop and resolve the error before continuing.
 
 The experiment compares a single judge with a panel of three specialists. Start with **one development case**, inspect its report, and then run **all 120 development cases**. Each case is evaluated twice with the candidates in opposite orders. The separate 400-case final evaluation comes after development and experiment freeze.

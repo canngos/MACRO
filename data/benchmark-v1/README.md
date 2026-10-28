@@ -1,6 +1,4 @@
-# Historical benchmark draft
-
-This older package is retained for provenance. Use [benchmark-v2](../benchmark-v2/README.md) for the submitted 400-case evaluation. Counts and status statements below describe the earlier generation step.
+# Draft development and final-evaluation benchmark
 
 120 development cases and 600 final test cases are the default configuration. See the manifest for actual counts.
 

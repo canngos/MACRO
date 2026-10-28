@@ -1,42 +1,52 @@
-# Architecture
+# MACRO team code guide
 
-`python -m macro` enters [src/macro/cli.py](src/macro/cli.py). The default split is `data/benchmark-v2/dev`; the default configuration is `configs/benchmark-judges.json`.
+`python -m macro` and `macro` both enter `src/macro/cli.py`. Planning and evaluation default to `data/benchmark-v2/test` and `configs/benchmark-judges.json`. There is one active benchmark policy and no pilot runtime dispatcher.
 
-## Evaluation flow
+## Where to work
 
-1. Validate the dataset, configuration and reference-label identities.
-2. Save snapshots and record the code, prompt, schema and model settings.
-3. Evaluate each case in original and reversed recommendation order. A fresh AG2 agent is created for each role and attempt. Specialists see no other judge's answer.
-4. Validate structured responses and evidence pointers, allowing bounded retries and calculator calls.
-5. Apply the fixed coordinator to the three specialist assessments. Apply the same public-fact hard-constraint guardrail to the single judge's decision.
-6. Compare decisions with private references and generate HTML, Markdown and JSON reports.
-
-Both systems receive the same public evidence, rubric and calculator access. Private reference labels are used for scoring, never included in prompts or coordinator inputs. The coordinator uses model-reported soft scores; it does not substitute reference scores.
-
-## Code map
-
-| Module under `src/macro/` | Responsibility |
+| Responsibility | File under `src/macro/` |
 |---|---|
-| `evaluate_case_generation/dataset.py` | Filter HUMMUS and normalize documented ingredient groups |
-| `evaluate_case_generation/benchmark.py` | Construct pairs, profiles and development/test splits |
-| `ai_agents/prompts.py` | Shared policy, role prompts and public-input whitelist |
-| `ai_agents/schemas.py` | Structured findings and evidence-pointer validation |
-| `ai_agents/agents.py` | AG2 agents, provider calls, response handling and tool rounds |
-| `ai_agents/tools.py` | Shared arithmetic calculator |
-| `coordinator/aggregation.py` | Fixed aggregation and shared hard-constraint checks |
-| `evaluation/inputs.py` | Dataset and configuration checks |
-| `evaluation/runner.py` | Both orders, call budgets, snapshots and resume |
-| `evaluation/readiness.py` | Check the frozen record before final-test inference |
-| `evaluation/metrics.py` | Accuracy, constraint detection, coverage and stability |
-| `reporting/` | Saved-result summaries, cost estimates and HTML reports |
-| `shared/benchmark_policy.py` | Deterministic reference labels |
-| `shared/config.py` | Provider and credential selection |
-| `shared/comparison.py`, `shared/io.py` | Comparisons, order swaps, persistence and hashes |
+| Parse, normalize and sample HUMMUS | `evaluate_case_generation/dataset.py` |
+| Construct cases, split data and validate saved references | `evaluate_case_generation/benchmark.py` |
+| Shared rubric and role prompts | `ai_agents/prompts.py` |
+| Structured response format and evidence validation | `ai_agents/schemas.py` |
+| Fresh AG2 agents, bounded tool rounds and requests | `ai_agents/agents.py` |
+| Shared arithmetic tool | `ai_agents/tools.py` |
+| Fixed aggregation and common constraint verification | `coordinator/aggregation.py` |
+| Dataset/configuration preflight | `evaluation/inputs.py` |
+| Original/reversed runs, budgets, request ledger and resume | `evaluation/runner.py` |
+| Accuracy, constraint detection and order stability | `evaluation/metrics.py` |
+| JSON, Markdown and HTML reports | `reporting/` |
+| Deterministic reference policy and public-data validation | `shared/benchmark_policy.py` |
+| Numeric tolerance, comparisons and candidate swapping | `shared/comparison.py` |
+| Provider selection and credentials | `shared/config.py` |
+| File persistence and hashes | `shared/io.py` |
 
-## Failure handling and reproducibility
+The same AG2 factory configures all four roles. Each receives the same public evidence, shared rubric and calculator access. Role instructions and schemas define their responsibilities. `BENCHMARK_PROMPT_VERSION`, `SCHEMA_VERSION`, `POLICY_VERSION` and `AGGREGATION_VERSION` identify different experiment components; they do not select competing policies.
 
-An invalid or missing specialist output makes the panel evaluation a `technical_failure`. This differs from a valid `insufficient_information` judgment. Failures remain in overall accuracy and coverage denominators.
+## Execution flow
 
-The runner saves each request and assessment. Repeating a run ID resumes only when code, configuration and inputs match; changed experiments require a new ID. Interrupted requests with uncertain completion require explicit retry acknowledgement because they may already have been billed.
+1. The input preflight verifies package hashes, references, policy versions and split separation.
+2. The runner snapshots the experiment inputs and fingerprints all package modules.
+3. For each case and candidate order, one single judge and three independent specialists return structured assessments.
+4. The coordinator verifies hard constraints from public facts, then compares the specialists' reported scores on active objectives. Dominance precedes declared priorities; insufficient priorities can leave a trade-off unresolved. Explanation findings remain diagnostics. Missing or invalid specialists produce technical failure.
+5. The single judge receives the same hard-constraint guardrail. Raw findings and raw decisions remain available for scoring.
+6. Metrics compare saved judgments with private references; reports expose the evidence and responses for inspection.
 
-Dataset and experiment hashes establish identity, not factual correctness. The [evaluation policy](EVALUATION_POLICY.md) explains how reference labels are calculated.
+The runner loads private references for experiment identity and scoring, but they never enter agent prompts or coordinator inputs. `shared/benchmark_policy.py` computes those references outside the judge path. The coordinator does not replace reported soft scores with reference answers.
+
+## Boundaries to preserve
+
+- Keep RQ1/RQ2 scope: fixed aggregation without discussion rounds or explanation manipulation.
+- Paid requests belong in `ai_agents/agents.py`. Planning, data preparation, aggregation and saved-result reporting make no API calls.
+- OpenAI runs require explicit paid acknowledgement. Both OpenAI and local Ollama runs require a request cap. Resume rejects changed code, settings or inputs; use a new run ID after a refactor.
+- Internal fixtures stay in `tests/`. The user-facing run command always uses real judges.
+- Historical datasets and experiment outputs are preserved. Reports retain read-only support for historical snapshots; old pilot prompts, schemas and aggregation are no longer executable.
+
+`data/benchmark-v2/` is the active 400-test/120-development package. Historical pilot files also supply recipe IDs to exclude during generation. A new human-review sample must come from benchmark-v2; review is scheduled after inference, blind to model judgments.
+
+## Local Ollama execution
+
+`shared/config.py` resolves `IS_LOCAL_LLM` and `LOCAL_LLM_MODEL` once before a run. Local mode uses AG2's existing OpenAI-compatible client at the fixed loopback endpoint `http://127.0.0.1:11434/v1`, with a placeholder key; it never reads or sends the OpenAI key. No native Ollama Python adapter or extra package is needed. A blank model is an error and failed local requests cannot fall back to OpenAI.
+
+All four roles share the same provider/model, rubric, structured output schema and calculator. Local requests use `max_tokens` and temperature 0, omitting OpenAI-specific reasoning/store fields. Provider, model and effective settings enter the saved configuration and resume fingerprint. Local inference is a real model run (`mode=live`); only internal synthetic fixtures use `mode=offline`. Reports record tokens/latency and do not apply cloud pricing to local runs.

@@ -1,7 +1,5 @@
 # Review of the 120-case DeepSeek live development run
 
-Historical development record. Commands and status statements below describe that earlier stage. Use the [current run guide](../RUNNING.md) for execution.
-
 **Review date:** 20 October 2026  
 **Run:** `deepseek-benchmark-dev-120-001`  
 **Dataset:** `benchmark-v2`, development split  
@@ -58,7 +56,7 @@ Add a diagnostic that compares the single judge's decision with the decision imp
 
 Preserve the original model decision when scoring this study. Replacing it with a calculated verdict would change the single-judge system being evaluated. Any such alternative should be defined and reported as a separate experimental condition.
 
-**Relevant code:** [benchmark prompt](../../src/macro/ai_agents/prompts.py), [benchmark decision rules](../../src/macro/ai_agents/benchmark_schemas.py), and [runner](../../src/macro/evaluation/runner.py).
+**Relevant code:** [benchmark prompt](src/macro/ai_agents/prompts.py), [benchmark decision rules](src/macro/ai_agents/benchmark_schemas.py), and [runner](src/macro/evaluation/runner.py).
 
 ### 2. Malformed explanation output can exhaust repairs
 
@@ -70,7 +68,7 @@ There were six failed role attempts due to assessment validation across the run:
 
 Disabling the explanation tool is a proposed mitigation, not a proven diagnosis of the DSML output. Verify it on development cases. Increasing the output token limit is not supported by these failures, since they finished with `stop` rather than a length limit.
 
-**Relevant code:** [agent setup and repair handling](../../src/macro/ai_agents/agents.py) and [assessment validation](../../src/macro/ai_agents/schemas.py).
+**Relevant code:** [agent setup and repair handling](src/macro/ai_agents/agents.py) and [assessment validation](src/macro/ai_agents/schemas.py).
 
 ### 3. Correct rationales do not guarantee correct structured fields
 
@@ -89,7 +87,7 @@ Two additional mistakes did not change the final verdict:
 
 These factual checks belong in evaluation reporting. Automatically repairing model findings from case facts during inference would add deterministic assistance and change the evaluated system. Do not extract an alternative answer from prose rationales to overwrite saved fields.
 
-**Relevant code:** [prompts](../../src/macro/ai_agents/prompts.py), [schemas](../../src/macro/ai_agents/schemas.py), and [evaluation metrics](../../src/macro/evaluation/metrics.py).
+**Relevant code:** [prompts](src/macro/ai_agents/prompts.py), [schemas](src/macro/ai_agents/schemas.py), and [evaluation metrics](src/macro/evaluation/metrics.py).
 
 ### 4. Explanation support and disclosure need clearer definitions
 
@@ -116,7 +114,7 @@ Configure pricing with its currency, effective date, and official source. Report
 
 The earlier AutoGen unknown-model pricing warning is consistent with missing local pricing metadata. It does not mean these successful requests were free or that the API model identifier was invalid.
 
-**Relevant code:** [metrics](../../src/macro/evaluation/metrics.py) and [report generation](../../src/macro/reporting/summary.py).
+**Relevant code:** [metrics](src/macro/evaluation/metrics.py) and [report generation](src/macro/reporting/summary.py).
 
 ## Interpretation of the specialist advantage
 
@@ -149,12 +147,12 @@ The review identified findings and proposed changes. It did not change prompts, 
 
 Primary records:
 
-- Run summary (`results/deepseek-benchmark-dev-120-001/summary.json`, external run artifact)
-- Run manifest (`results/deepseek-benchmark-dev-120-001/manifest.json`, external run artifact)
-- Human-readable run report (`results/deepseek-benchmark-dev-120-001/report.html`, external run artifact)
-- Case snapshot (`results/deepseek-benchmark-dev-120-001/cases.snapshot.jsonl`, external run artifact)
-- Private reference snapshot (`results/deepseek-benchmark-dev-120-001/references.snapshot.private.jsonl`, external run artifact)
-- [Dataset readiness checks](../../data/benchmark-v2/validation.json)
-- [Dataset manifest](../../data/benchmark-v2/manifest.json)
+- [Run summary](results/deepseek-benchmark-dev-120-001/summary.json)
+- [Run manifest](results/deepseek-benchmark-dev-120-001/manifest.json)
+- [Human-readable run report](results/deepseek-benchmark-dev-120-001/report.html)
+- [Case snapshot](results/deepseek-benchmark-dev-120-001/cases.snapshot.jsonl)
+- [Private reference snapshot](results/deepseek-benchmark-dev-120-001/references.snapshot.private.jsonl)
+- [Dataset readiness checks](data/benchmark-v2/validation.json)
+- [Dataset manifest](data/benchmark-v2/manifest.json)
 
 The private references are linked for local audit purposes and should remain separate from material supplied to model judges.
