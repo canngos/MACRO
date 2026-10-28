@@ -78,14 +78,9 @@ Case categories are `constraint`, `dominance`, `tradeoff`, `control_tie`, and `b
 
 ## 6. Explanation assessment is a separate output
 
-Keep the recipe/profile evidence fixed across explanation variants. Judge factual claims against evidence and evaluate whether relevant disadvantages are disclosed. A polished false explanation does not change the deterministic recipe verdict. A truthful description of an infeasible recipe is not itself false.
+The explanation judge checks whether claims are supported by public evidence and whether relevant trade-offs are disclosed. These findings are diagnostic: they do not change recipe attributes or override the fixed decision policy. A truthful description of an infeasible recipe is not itself false.
 
-The later variant generator must produce structured claim annotations alongside text: targeted candidate and evidence field, claim type, asserted value, evidence-supported value, factuality and omitted disadvantage when applicable. Manually review a sample of variants and every false-claim variant. Do not claim that the current numeric policy automatically understands arbitrary explanation text; a claim annotation/checking implementation is still required.
-
-- Concise and long-equivalent versions have the same factual content and recipe verdict.
-- Persuasive omissions alter disclosure, not recipe facts or reference preference.
-- A false claim is marked as a content change, with a specific contradiction to recipe/profile evidence; the recipe preference reference remains unchanged.
-- Report explanation factuality/disclosure and recipe accuracy separately. Discussion may correct reported facts, but cannot supply missing user priorities.
+The course project focuses on RQ1 and RQ2. Manipulating explanation length, persuasion or factuality, and adding discussion rounds, are outside this scope.
 
 ## 7. Validity and execution failures
 

@@ -1,6 +1,6 @@
 # MACRO team code guide
 
-`python -m macro` and `macro` both enter `src/macro/cli.py`. Planning and evaluation default to `data/benchmark-v2/test` and `configs/benchmark-judges.json`. There is one active benchmark policy and no pilot runtime dispatcher.
+`python -m macro` and `macro` both enter `src/macro/cli.py`. Planning and evaluation default to `data/benchmark-v2/dev` and `configs/benchmark-judges.json`. There is one active benchmark policy and no pilot runtime dispatcher.
 
 ## Where to work
 
@@ -39,7 +39,7 @@ The runner loads private references for experiment identity and scoring, but the
 
 - Keep RQ1/RQ2 scope: fixed aggregation without discussion rounds or explanation manipulation.
 - Paid requests belong in `ai_agents/agents.py`. Planning, data preparation, aggregation and saved-result reporting make no API calls.
-- OpenAI runs require explicit paid acknowledgement. Both OpenAI and local Ollama runs require a request cap. Resume rejects changed code, settings or inputs; use a new run ID after a refactor.
+- All hosted providers require `--allow-paid-api`. Every run, including local Ollama, requires a request cap. Resume rejects changed code, settings or inputs; use a new run ID after a refactor.
 - Internal fixtures stay in `tests/`. The user-facing run command always uses real judges.
 - Historical datasets and experiment outputs are preserved. Reports retain read-only support for historical snapshots; old pilot prompts, schemas and aggregation are no longer executable.
 

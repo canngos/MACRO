@@ -11,13 +11,10 @@ system afterward. It is not a direct rating of the models' written rationales.
 
 ## Generate the packet
 
-Open PowerShell and paste:
+Run from the project folder. Replace `results/deepseek-final-400` with the saved run folder you want to sample:
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\shane\Documents\NLP\group_project\MACRO'
-$taskPython = (Resolve-Path -LiteralPath '..\venv\Scripts\python.exe').Path
-
-& $taskPython scripts/generate_human_evaluation.py --run-dir results/deepseek-final-400-20261020-204822 --out human_evaluation/deepseek-final-400-20261020-204822/sample-50-seed-42 --per-class 10 --seed 42
+.\.venv\Scripts\python.exe scripts/generate_human_evaluation.py --run-dir results/deepseek-final-400 --out human_evaluation/sample-50-seed-42 --per-class 10 --seed 42
 ```
 
 The default seed is fixed for reproducibility. Keep it fixed for the study; do not
@@ -47,7 +44,7 @@ sample-50-seed-42/
 Open the form:
 
 ```powershell
-Start-Process -FilePath (Resolve-Path -LiteralPath 'human_evaluation/deepseek-final-400-20261020-204822/sample-50-seed-42/packet/evaluate.html').Path
+Start-Process -FilePath (Resolve-Path -LiteralPath 'human_evaluation/sample-50-seed-42/packet/evaluate.html').Path
 ```
 
 Each evaluator enters an anonymous rater code, assesses feasibility and the final

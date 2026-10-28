@@ -33,7 +33,7 @@ An explicit `provider` in a JSON configuration takes precedence. Otherwise, `LLM
 
 DeepInfra uses the existing AG2/OpenAI SDK dependencies; **no extra pip install is needed**. The [documented API endpoint](https://deepinfra.com/Qwen/Qwen3.5-9B/api?example=openai-python) is `https://api.deepinfra.com/v1/openai`. Your PC runs the evaluation code; DeepInfra runs the model. This does not use your OpenAI account or local GPU.
 
-## 3. Try one case
+## Try one development case
 
 DeepSeek is supported on the current benchmark with
 [configs/deepseek-pilot.json](configs/deepseek-pilot.json). Despite its historical
@@ -43,25 +43,13 @@ An explicit configuration provider keeps this command on DeepSeek even if a diff
 provider is selected in the environment.
 
 ```powershell
-& $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
-# Paid development smoke check; use a new run ID after the merge repair:
-& $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 1 --allow-paid-api --max-calls 48 --run-id deepseek-dev-merge-smoke-001
-& $taskPython -m macro summarize results/deepseek-dev-merge-smoke-001
+.\.venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2/dev --limit 1
+.\.venv\Scripts\python.exe -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2/dev --limit 1 --allow-paid-api --max-calls 48 --run-id deepseek-dev-01
 ```
 
-Set `$taskPython` to your installed environment's Python executable before using these
-commands. `configs/deepseek-thinking-pilot.json` enables thinking instead. Both modes
-have offline SDK protocol coverage; changed prompts and schemas require fresh live
-development checks. Both DeepSeek configurations include dated Flash pricing. Reports
-show cache-aware off-peak/peak cost ranges for known usage, with a conservative peak
-estimate; AutoGen uses peak uncached rates for its simpler local estimate. See the
-[pricing explanation](DEEPSEEK_MIGRATION.md#configured-deepseek-flash-pricing).
-
-The repaired merge uses `benchmark-assessment-v2` (positive `duration_minutes` findings)
-and `benchmark-judges-v2`. New runs retain the merged shared constraint guardrail and
-report raw decisions separately. The saved 120-case run predates that contract and
-must remain separate; its reports can be rebuilt without altering its recorded decisions.
-See [the merge repair review](MERGE_REPAIR_REVIEW.md) for verification and limitations.
+Open `results/deepseek-dev-01/report.html` after the run. Use development cases to
+check compatibility before starting a full benchmark. Keep results from different
+prompt versions and configurations separate.
 
 Start with a small compatibility run, then inspect its HTML report before the 400 cases:
 
@@ -105,7 +93,7 @@ The model then comes from `configs/benchmark-judges.json`; the other providers' 
 
 ## Preview the evaluation (no API charges)
 
-For the current integration status, see [the merge repair review](MERGE_REPAIR_REVIEW.md). Use a new run ID for each changed provider, configuration or implementation.
+Use a new run ID for each changed provider, configuration or implementation.
 
 ```powershell
 .\.venv\Scripts\python.exe -m macro plan
@@ -113,13 +101,7 @@ For the current integration status, see [the merge repair review](MERGE_REPAIR_R
 
 This validates the benchmark and previews all 120 development cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 960 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
 
-## Run the judges with DeepInfra or OpenAI (incurs API charges)
-
-First check a few development cases:
-
-```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
-```
+## The 400-case benchmark
 
 The 400 final-test cases can be previewed without inference:
 
@@ -137,7 +119,7 @@ Final-test inference requires an approved, hash-matching readiness record. See
 | `--split` | Optional `dev` or `test` when `--cases` names the package root |
 | `--limit` | Number of cases; omitted means the whole selected split |
 | `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
-| `--allow-paid-api` | Required for DeepInfra and OpenAI; unnecessary for local Ollama |
+| `--allow-paid-api` | Required for all hosted providers; unnecessary for local Ollama |
 | `--max-calls` | Required request cap; **not a money limit or usage prediction** |
 | `--run-id` | Output folder name inside `results/` |
 
@@ -158,8 +140,8 @@ Reports and manifests identify the selected provider/model. Changing either requ
 Rebuild a saved report or verify the existing dataset without API calls:
 
 ```powershell
-& $taskPython -m macro summarize results/deepseek-benchmark-dev-120-001
-& $taskPython -m macro validate --cases data/benchmark-v2/dev
+.\.venv\Scripts\python.exe -m macro summarize results/deepseek-dev-01
+.\.venv\Scripts\python.exe -m macro validate --cases data/benchmark-v2
 ```
 
 Generate a new benchmark package only when intentionally preparing new data;
@@ -170,20 +152,11 @@ The defaults create **120 development cases and 400 final test cases** under
 [EVALUATION_POLICY.md](EVALUATION_POLICY.md). Read the generated benchmark README
 for coverage and pending reviews. Gold references and source mappings are in its
 `private/` folder; only the split's `cases.jsonl` belongs in judge input.
-The runner now supports this profile schema through explicit split selection; see
-[the DeepSeek experiment manual](DEEPSEEK_MIGRATION.md).
-Preview the 120 development cases without API calls:
-
-```powershell
-.\venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
-```
-
-`--split test --limit 400` supports a no-cost preview. Paid final-test execution
-requires the approved `--final-readiness` record; it is rejected when the record is missing or artifacts changed.
-Use the development split for smoke runs and configuration choices.
 Each of the five case categories has 24 development and 80 final-test cases. Category
 balance is distinct from verdict-label balance. The earlier 600-test-case draft remains
 in `data/benchmark-v1/` for provenance; do not combine versions for evaluation.
+
+## Code structure
 
 | Folder inside `src/macro/` | Responsibility |
 |---|---|
