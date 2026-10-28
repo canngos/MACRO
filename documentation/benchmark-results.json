@@ -1,0 +1,562 @@
+{
+  "description": "Recorded summaries of three completed runs. No new inference. Rates use the saved run denominators.",
+  "runs": [
+    {
+      "source_run": "openai-benchmark-400-01",
+      "source_summary_sha256": "f1b19e4203f470bccb46cea0a945c126084d1edb61cb334956827c63edcd84a1",
+      "source_manifest_sha256": "b18549d7a8ea03590d0a8f73bceb9639a5a52fe929833cc51e2f0c6b4ae561ca",
+      "provider": "openai",
+      "model": "gpt-5-nano",
+      "prompt_version": "benchmark-judges-v1",
+      "schema_version": "benchmark-assessment-v1",
+      "case_digest": "9a84f67c2432e90f491751f85fdd1fec7ed8a5506393a5a57b4eb50383e8bec8",
+      "reference_digest": "1c60190fe51e22e782593c032c81223190720575727835b8f93c803f05bcbea7",
+      "systems": {
+        "single": {
+          "evaluation_coverage": {
+            "correct": 800,
+            "total": 800,
+            "rate": 1.0
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 473,
+            "fp": 11,
+            "fn": 7,
+            "tn": 1109,
+            "observed_flags": 1600,
+            "planned_flags": 1600,
+            "precision": 0.9772727272727273,
+            "recall": 0.9854166666666667,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "constraint": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "control_tie": {
+              "correct": 118,
+              "total": 160,
+              "rate": 0.7375
+            },
+            "dominance": {
+              "correct": 149,
+              "total": 160,
+              "rate": 0.93125
+            },
+            "tradeoff": {
+              "correct": 145,
+              "total": 160,
+              "rate": 0.90625
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 75,
+            "total": 80,
+            "rate": 0.9375
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 70,
+            "total": 80,
+            "rate": 0.875
+          },
+          "candidate_order_stability": {
+            "correct": 346,
+            "total": 400,
+            "rate": 0.865
+          },
+          "diagnostic_counts": {},
+          "overall_accuracy": {
+            "correct": 732,
+            "total": 800,
+            "rate": 0.915
+          },
+          "raw_accuracy": {
+            "correct": 717,
+            "total": 800,
+            "rate": 0.89625
+          },
+          "usage": {
+            "prompt_tokens": 2109395,
+            "completion_tokens": 1042514,
+            "total_tokens": 3151909,
+            "model_calls": 801,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 6968.932368199981,
+            "retry_attempt_calls": 1,
+            "tool_executions": 0,
+            "currency_estimate": null
+          }
+        },
+        "specialists": {
+          "evaluation_coverage": {
+            "correct": 800,
+            "total": 800,
+            "rate": 1.0
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 473,
+            "fp": 10,
+            "fn": 7,
+            "tn": 1110,
+            "observed_flags": 1600,
+            "planned_flags": 1600,
+            "precision": 0.979296066252588,
+            "recall": 0.9854166666666667,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "constraint": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "control_tie": {
+              "correct": 158,
+              "total": 160,
+              "rate": 0.9875
+            },
+            "dominance": {
+              "correct": 156,
+              "total": 160,
+              "rate": 0.975
+            },
+            "tradeoff": {
+              "correct": 154,
+              "total": 160,
+              "rate": 0.9625
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 78,
+            "total": 80,
+            "rate": 0.975
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 76,
+            "total": 80,
+            "rate": 0.95
+          },
+          "candidate_order_stability": {
+            "correct": 389,
+            "total": 400,
+            "rate": 0.9725
+          },
+          "diagnostic_counts": {},
+          "overall_accuracy": {
+            "correct": 788,
+            "total": 800,
+            "rate": 0.985
+          },
+          "raw_accuracy": {
+            "correct": 777,
+            "total": 800,
+            "rate": 0.97125
+          },
+          "usage": {
+            "prompt_tokens": 4354040,
+            "completion_tokens": 2612820,
+            "total_tokens": 6966860,
+            "model_calls": 2400,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 17746.063560800627,
+            "retry_attempt_calls": 0,
+            "tool_executions": 0,
+            "currency_estimate": null
+          }
+        }
+      }
+    },
+    {
+      "source_run": "ollama-benchmark-400-01",
+      "source_summary_sha256": "5a3331c03754459e9b0c2601e1aede2741ce2c3c428c219370f58362983c4b39",
+      "source_manifest_sha256": "c1cfbc57e324423578d263fe8582a624c53d0ba9a0e7cad223aec2dd47ad5e8a",
+      "provider": "ollama",
+      "model": "qwen3.5:9b",
+      "prompt_version": "benchmark-judges-v1",
+      "schema_version": "benchmark-assessment-v1",
+      "case_digest": "9a84f67c2432e90f491751f85fdd1fec7ed8a5506393a5a57b4eb50383e8bec8",
+      "reference_digest": "1c60190fe51e22e782593c032c81223190720575727835b8f93c803f05bcbea7",
+      "systems": {
+        "single": {
+          "evaluation_coverage": {
+            "correct": 790,
+            "total": 800,
+            "rate": 0.9875
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 480,
+            "fp": 0,
+            "fn": 0,
+            "tn": 1100,
+            "observed_flags": 1580,
+            "planned_flags": 1600,
+            "precision": 1.0,
+            "recall": 1.0,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "constraint": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "control_tie": {
+              "correct": 125,
+              "total": 160,
+              "rate": 0.78125
+            },
+            "dominance": {
+              "correct": 155,
+              "total": 160,
+              "rate": 0.96875
+            },
+            "tradeoff": {
+              "correct": 97,
+              "total": 160,
+              "rate": 0.60625
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 77,
+            "total": 80,
+            "rate": 0.9625
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 20,
+            "total": 80,
+            "rate": 0.25
+          },
+          "candidate_order_stability": {
+            "correct": 333,
+            "total": 400,
+            "rate": 0.8325
+          },
+          "diagnostic_counts": {
+            "technical_failure": 10
+          },
+          "overall_accuracy": {
+            "correct": 697,
+            "total": 800,
+            "rate": 0.87125
+          },
+          "raw_accuracy": {
+            "correct": 694,
+            "total": 800,
+            "rate": 0.8675
+          },
+          "usage": {
+            "prompt_tokens": 1291433,
+            "completion_tokens": 1340821,
+            "total_tokens": 2632254,
+            "model_calls": 811,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 21228.81415869996,
+            "retry_attempt_calls": 10,
+            "tool_executions": 1,
+            "currency_estimate": null
+          }
+        },
+        "specialists": {
+          "evaluation_coverage": {
+            "correct": 773,
+            "total": 800,
+            "rate": 0.96625
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 458,
+            "fp": 0,
+            "fn": 0,
+            "tn": 1088,
+            "observed_flags": 1546,
+            "planned_flags": 1600,
+            "precision": 1.0,
+            "recall": 1.0,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 154,
+              "total": 160,
+              "rate": 0.9625
+            },
+            "constraint": {
+              "correct": 150,
+              "total": 160,
+              "rate": 0.9375
+            },
+            "control_tie": {
+              "correct": 156,
+              "total": 160,
+              "rate": 0.975
+            },
+            "dominance": {
+              "correct": 158,
+              "total": 160,
+              "rate": 0.9875
+            },
+            "tradeoff": {
+              "correct": 154,
+              "total": 160,
+              "rate": 0.9625
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 79,
+            "total": 80,
+            "rate": 0.9875
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 75,
+            "total": 80,
+            "rate": 0.9375
+          },
+          "candidate_order_stability": {
+            "correct": 372,
+            "total": 400,
+            "rate": 0.93
+          },
+          "diagnostic_counts": {
+            "technical_failure": 27
+          },
+          "overall_accuracy": {
+            "correct": 772,
+            "total": 800,
+            "rate": 0.965
+          },
+          "raw_accuracy": {
+            "correct": 772,
+            "total": 800,
+            "rate": 0.965
+          },
+          "usage": {
+            "prompt_tokens": 4039735,
+            "completion_tokens": 2875441,
+            "total_tokens": 6915176,
+            "model_calls": 2487,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 45447.7086267998,
+            "retry_attempt_calls": 84,
+            "tool_executions": 3,
+            "currency_estimate": null
+          }
+        }
+      }
+    },
+    {
+      "source_run": "deepseek-final-400",
+      "source_summary_sha256": "3227199286c96d4b48d3292807ad73dfb0b059fb98db8d80e37fd9fcf704f452",
+      "source_manifest_sha256": "0e4df7e0e625aab81e40495b5c853570c039ed4bd497cb81191b733c3b09674a",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "prompt_version": "benchmark-judges-v2",
+      "schema_version": "benchmark-assessment-v2",
+      "case_digest": "9a84f67c2432e90f491751f85fdd1fec7ed8a5506393a5a57b4eb50383e8bec8",
+      "reference_digest": "1c60190fe51e22e782593c032c81223190720575727835b8f93c803f05bcbea7",
+      "systems": {
+        "single": {
+          "evaluation_coverage": {
+            "correct": 800,
+            "total": 800,
+            "rate": 1.0
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 478,
+            "fp": 1,
+            "fn": 2,
+            "tn": 1119,
+            "observed_flags": 1600,
+            "planned_flags": 1600,
+            "precision": 0.9979123173277662,
+            "recall": 0.9958333333333333,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "constraint": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "control_tie": {
+              "correct": 156,
+              "total": 160,
+              "rate": 0.975
+            },
+            "dominance": {
+              "correct": 138,
+              "total": 160,
+              "rate": 0.8625
+            },
+            "tradeoff": {
+              "correct": 159,
+              "total": 160,
+              "rate": 0.99375
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 80,
+            "total": 80,
+            "rate": 1.0
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 79,
+            "total": 80,
+            "rate": 0.9875
+          },
+          "candidate_order_stability": {
+            "correct": 389,
+            "total": 400,
+            "rate": 0.9725
+          },
+          "diagnostic_counts": {},
+          "overall_accuracy": {
+            "correct": 773,
+            "total": 800,
+            "rate": 0.96625
+          },
+          "raw_accuracy": {
+            "correct": 771,
+            "total": 800,
+            "rate": 0.96375
+          },
+          "usage": {
+            "prompt_tokens": 3686987,
+            "completion_tokens": 485384,
+            "total_tokens": 4172371,
+            "model_calls": 939,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 2197.6706403999524,
+            "retry_attempt_calls": 4,
+            "tool_executions": 204,
+            "cache_hit_tokens": 840192,
+            "cache_miss_tokens": 2846795,
+            "input_tokens_without_cache_breakdown": 0,
+            "currency_estimate": 1.4415404520000001,
+            "currency_estimate_lower": 0.7207702260000001,
+            "currency_estimate_upper": 1.4415404520000001,
+            "off_peak_currency_estimate": 0.7207702260000001,
+            "peak_currency_estimate": 1.4415404520000001,
+            "note": "USD token-cost estimates for recorded usage only, not an invoice. currency_estimate uses peak rates; unknown cache tokens are treated as misses. Range uses all off-peak to all peak rates and accounts for unknown cache splits. No billing period or Chinese public holiday is inferred from request timestamps. Calls without usage are omitted; their cost is unknown."
+          }
+        },
+        "specialists": {
+          "evaluation_coverage": {
+            "correct": 800,
+            "total": 800,
+            "rate": 1.0
+          },
+          "constraint_detection": {
+            "unit": "candidate violation flag, both orders (repeated observations)",
+            "tp": 479,
+            "fp": 1,
+            "fn": 1,
+            "tn": 1119,
+            "observed_flags": 1600,
+            "planned_flags": 1600,
+            "precision": 0.9979166666666667,
+            "recall": 0.9979166666666667,
+            "note": "Raw judge flags before guardrails. Precision/recall use available flags; missing flags are exposed through coverage, not silently labelled safe."
+          },
+          "accuracy_by_type": {
+            "both_violate": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "constraint": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "control_tie": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "dominance": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            },
+            "tradeoff": {
+              "correct": 160,
+              "total": 160,
+              "rate": 1.0
+            }
+          },
+          "declared_priority_alignment": {
+            "correct": 80,
+            "total": 80,
+            "rate": 1.0
+          },
+          "correct_insufficient_priority_outcomes": {
+            "correct": 80,
+            "total": 80,
+            "rate": 1.0
+          },
+          "candidate_order_stability": {
+            "correct": 400,
+            "total": 400,
+            "rate": 1.0
+          },
+          "diagnostic_counts": {},
+          "overall_accuracy": {
+            "correct": 800,
+            "total": 800,
+            "rate": 1.0
+          },
+          "raw_accuracy": {
+            "correct": 798,
+            "total": 800,
+            "rate": 0.9975
+          },
+          "usage": {
+            "prompt_tokens": 6116801,
+            "completion_tokens": 810289,
+            "total_tokens": 6927090,
+            "model_calls": 2451,
+            "calls_without_usage": 0,
+            "latency_seconds_sum": 4851.7805619999635,
+            "retry_attempt_calls": 27,
+            "tool_executions": 41,
+            "cache_hit_tokens": 1055488,
+            "cache_miss_tokens": 5061313,
+            "input_tokens_without_cache_breakdown": 0,
+            "currency_estimate": 2.497073628,
+            "currency_estimate_lower": 1.248536814,
+            "currency_estimate_upper": 2.497073628,
+            "off_peak_currency_estimate": 1.248536814,
+            "peak_currency_estimate": 2.497073628,
+            "note": "USD token-cost estimates for recorded usage only, not an invoice. currency_estimate uses peak rates; unknown cache tokens are treated as misses. Range uses all off-peak to all peak rates and accounts for unknown cache splits. No billing period or Chinese public holiday is inferred from request timestamps. Calls without usage are omitted; their cost is unknown."
+          }
+        }
+      }
+    }
+  ]
+}

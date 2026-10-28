@@ -1,199 +1,63 @@
 # MACRO
 
-For the 50-case blinded human annotation packet, see [Human evaluation](HUMAN_EVALUATION.md).
+MACRO evaluates fixed recipe recommendation pairs from HUMMUS. It compares a **structured single LLM judge** with **three independent specialist judges** (preference, attributes, and explanations), combined by a fixed Python coordinator. The specialists do not discuss their answers.
 
-MACRO evaluates **two already selected recipe recommendations** against a user's requirements. It compares one structured AG2 judge with three independent specialists: preference, recipe attributes/constraints, and explanation quality. A fixed Python coordinator combines the specialists' findings; there are no discussion rounds.
+The course project asks how reliably judges handle constraints, dominance and trade-offs, and whether the specialist-panel system improves reliability. The benchmark contains **400 test cases and 120 separate development cases**.
 
-The current package, `data/benchmark-v2/`, contains **400 test cases and 120 separate development cases**. The test set has 80 cases each of constraint violations, dominance, trade-offs, ties and both recommendations violating constraints. The code uses one shared [evaluation policy](EVALUATION_POLICY.md), including speed when explicitly declared.
+## Start here
 
-## Set up
+| To understand | Read |
+|---|---|
+| Evaluation rules and coordinator decisions | [Evaluation policy](EVALUATION_POLICY.md) |
+| How the cases were constructed | [Data preparation](DATA_PREPARATION.md) |
+| How the code fits together | [Architecture](ARCHITECTURE.md) |
+| Recorded benchmark results and limitations | [Results](RESULTS.md) |
+| Provider setup, evaluation and saved reports | [Running the project](documentation/RUNNING.md) |
+| Independent review of 50 cases | [Human evaluation](HUMAN_EVALUATION.md) |
 
-Use Python 3.11 or newer. Open PowerShell in the project folder:
+## Install
+
+Use Python 3.11 or newer. From the repository folder in PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
 .\.venv\Scripts\python.exe -m pip install --no-deps -e .
-Copy-Item .env.example .env
 ```
 
-For an existing setup, keep your existing `.env`. Run commands from the project folder; `.env` takes precedence over the terminal environment. In PyCharm, select `.venv\Scripts\python.exe` as the interpreter. Shared judge settings are in [configs/benchmark-judges.json](configs/benchmark-judges.json).
+On macOS/Linux, use `.venv/bin/python` instead of `.\.venv\Scripts\python.exe`. AG2 is installed as `autogen[openai]` by the requirements file.
 
-## Choose DeepInfra, Ollama or OpenAI
-
-For **DeepInfra**, put your DeepInfra API key in `.env`:
-
-```dotenv
-LLM_PROVIDER=deepinfra
-DEEPINFRA_API_KEY=your-deepinfra-key
-DEEPINFRA_MODEL=Qwen/Qwen3.5-9B
-```
-
-An explicit `provider` in a JSON configuration takes precedence. Otherwise, `LLM_PROVIDER` selects `deepinfra`, `ollama` or `openai` and takes precedence over the old `IS_LOCAL_LLM` flag. There is no automatic fallback between providers. Keys stay in `.env` and are not written into run manifests.
-
-DeepInfra uses the existing AG2/OpenAI SDK dependencies; **no extra pip install is needed**. The [documented API endpoint](https://deepinfra.com/Qwen/Qwen3.5-9B/api?example=openai-python) is `https://api.deepinfra.com/v1/openai`. Your PC runs the evaluation code; DeepInfra runs the model. This does not use your OpenAI account or local GPU.
-
-## 3. Try one case
-
-DeepSeek is supported on the current benchmark with
-[configs/deepseek-pilot.json](configs/deepseek-pilot.json). Despite its historical
-filename, this configuration now runs the benchmark schema. Set `DEEPSEEK_API_KEY`
-in your existing `.env` or terminal environment; `.env` credentials take precedence.
-An explicit configuration provider keeps this command on DeepSeek even if a different
-provider is selected in the environment.
+## Inspect the benchmark without model calls
 
 ```powershell
-& $taskPython -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
-# Paid development smoke check; use a new run ID after the merge repair:
-& $taskPython -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 1 --allow-paid-api --max-calls 48 --run-id deepseek-dev-merge-smoke-001
-& $taskPython -m macro summarize results/deepseek-dev-merge-smoke-001
+.\.venv\Scripts\python.exe -m macro validate --cases data/benchmark-v2
+.\.venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2/dev --limit 1
 ```
 
-Set `$taskPython` to your installed environment's Python executable before using these
-commands. `configs/deepseek-thinking-pilot.json` enables thinking instead. Both modes
-have offline SDK protocol coverage; changed prompts and schemas require fresh live
-development checks. Both DeepSeek configurations include dated Flash pricing. Reports
-show cache-aware off-peak/peak cost ranges for known usage, with a conservative peak
-estimate; AutoGen uses peak uncached rates for its simpler local estimate. See the
-[pricing explanation](DEEPSEEK_MIGRATION.md#configured-deepseek-flash-pricing).
+`validate` checks the saved cases and reference labels. `plan` previews the workload; neither needs an API key or starts a model. The explicit configuration makes this example independent of local provider settings. The historical `pilot` filename now refers to a configuration for the current benchmark.
 
-The repaired merge uses `benchmark-assessment-v2` (positive `duration_minutes` findings)
-and `benchmark-judges-v2`. New runs retain the merged shared constraint guardrail and
-report raw decisions separately. The saved 120-case run predates that contract and
-must remain separate; its reports can be rebuilt without altering its recorded decisions.
-See [the merge repair review](MERGE_REPAIR_REVIEW.md) for verification and limitations.
+## Run one development case
 
-Start with a small compatibility run, then inspect its HTML report before the 400 cases:
+Choose a provider and configure `.env` using the [run guide](documentation/RUNNING.md). For example, after adding `DEEPSEEK_API_KEY`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/dev --limit 3
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
+.\.venv\Scripts\python.exe -m macro run --config configs/deepseek-pilot.json --cases data/benchmark-v2/dev --limit 1 --allow-paid-api --max-calls 48 --run-id demo-01
 ```
 
-The plan command is free and does not need an API key. The run command makes paid requests. DeepInfra's BF16 deployment differs from the local Ollama artifact: use a fresh run ID, keep local development results separate, and run both benchmark methods on the same provider/model/settings. Runs remain sequential.
+This command makes paid API requests. Open `results/demo-01/report.html` afterward. Ollama runs locally and does not require `--allow-paid-api`. Each case has eight initial requests: four judge roles in each of two candidate orders. Retries and calculator follow-ups can add requests; the coordinator makes no model calls.
 
-For **local Ollama**, start the Ollama application (or `ollama serve` if it is not already running) and use `ollama list` to find your downloaded model's exact name. Set:
+Final-test runs require a matching experiment-readiness record. See the run guide before attempting the 400-case evaluation.
 
-```dotenv
-LLM_PROVIDER=ollama
-IS_LOCAL_LLM=true
-LOCAL_LLM_MODEL=your-installed-model-name
-```
+## Repository layout
 
-Replace the example name with an installed model that supports **tool calling and structured JSON responses**. An OpenAI key is unnecessary in local mode. A blank model name is rejected; connection/model errors never trigger a fallback to OpenAI.
-
-No additional pip installation is required beyond the project setup. AG2 uses the existing OpenAI client to reach Ollama's [OpenAI-compatible endpoint](https://docs.ollama.com/api/openai-compatibility) at `http://127.0.0.1:11434/v1`. The separate native `autogen[ollama]` adapter is not used. Ollama itself and a downloaded model must be installed separately.
-
-Try one development case locally:
-
-```powershell
-.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/dev --limit 1
-.\.venv\Scripts\python.exe -m macro run --cases data/benchmark-v2/dev --limit 1 --max-calls 24 --run-id ollama-dev-01
-```
-
-Local runs do not require `--allow-paid-api`; `--max-calls` still bounds requests. If your PC needs longer per response, increase `timeout_seconds` in the judge configuration before starting a new run. Local mode uses temperature 0 and sends the configured output-token cap as `max_tokens`; OpenAI-specific reasoning settings are omitted. The same local model/settings apply to all four roles.
-
-For **OpenAI**, set:
-
-```dotenv
-LLM_PROVIDER=openai
-IS_LOCAL_LLM=false
-OPENAI_API_KEY=your-api-key
-```
-
-The model then comes from `configs/benchmark-judges.json`; the other providers' model variables are ignored. If `LLM_PROVIDER` is absent/blank, existing setups still use `IS_LOCAL_LLM` (true for Ollama, false or absent for OpenAI).
-
-## Preview the evaluation (no API charges)
-
-For the current integration status, see [the merge repair review](MERGE_REPAIR_REVIEW.md). Use a new run ID for each changed provider, configuration or implementation.
-
-```powershell
-.\.venv\Scripts\python.exe -m macro plan
-```
-
-This validates the benchmark and previews all 120 development cases. Each case is evaluated in both A/B orders: **8 initial requests per case, 960 total**. Retries and calculator follow-ups can add requests. The coordinator makes no API calls.
-
-## Run the judges with DeepInfra or OpenAI (incurs API charges)
-
-First check a few development cases:
-
-```powershell
-.\.venv\Scripts\python.exe -m macro run --allow-paid-api --cases data/benchmark-v2/dev --limit 3 --max-calls 144 --run-id deepinfra-dev-01
-```
-
-The 400 final-test cases can be previewed without inference:
-
-```powershell
-.\.venv\Scripts\python.exe -m macro plan --cases data/benchmark-v2/test --limit 400
-```
-
-Final-test inference requires an approved, hash-matching readiness record. See
-[the readiness review](readiness/deepseek-final-400/REVIEW.md) and the
-[DeepSeek manual](DEEPSEEK_MIGRATION.md#8-the-final-400-case-evaluation).
-
-| Option | Meaning |
+| Folder | Contents |
 |---|---|
-| `--cases` | Split folder; defaults to `data/benchmark-v2/dev` |
-| `--split` | Optional `dev` or `test` when `--cases` names the package root |
-| `--limit` | Number of cases; omitted means the whole selected split |
-| `--config` | Judge settings; defaults to `configs/benchmark-judges.json` |
-| `--allow-paid-api` | Required for DeepInfra and OpenAI; unnecessary for local Ollama |
-| `--max-calls` | Required request cap; **not a money limit or usage prediction** |
-| `--run-id` | Output folder name inside `results/` |
+| `src/macro/` | Case generation, AG2 judges, coordinator, evaluation and reporting |
+| `configs/` | Dataset and judge settings |
+| `data/benchmark-v2/` | Current cases and separately stored reference labels |
+| `tests/` | Software checks using fixtures and mocked model responses |
+| `scripts/` | Human-review packet generation and experiment checks |
+| `readiness/deepseek-final-400/` | Preserved review evidence for the frozen DeepSeek experiment |
+| `documentation/archive/` | Historical development reviews; not required to run the project |
 
-Use a new run ID after changing code, configuration or cases, including after this refactor. To resume an interrupted run with unchanged inputs and code, repeat its command and ID. Completed assessments are reused. Do not run two processes with the same ID. An uncertain request requires inspecting its saved call record before explicitly permitting a retry; it may already have been billed.
-
-## Read the results
-
-Open `results/<run-id>/report.html`. It is generated automatically and includes decisions, evidence, judge rationales, raw responses and warnings.
-
-Reports and manifests identify the selected provider/model. Changing either requires a new run ID. Local runs record request counts, tokens and latency without applying OpenAI pricing; local electricity/hardware costs are not estimated. Keep different-model experiments separate when comparing single and specialist judges.
-
-- `summary.json` and `report.md`: metrics and recorded inference usage. Money estimates require configured pricing.
-- `roles/`: individual responses, validation errors and retries.
-- `evaluations/`: single-judge and coordinator decisions, including raw findings and constraint verification.
-- `calls/`: request records and token usage.
-- `manifest.json` and snapshots: the code/configuration/input identity used for the run.
-
-Rebuild a saved report or verify the existing dataset without API calls:
-
-```powershell
-& $taskPython -m macro summarize results/deepseek-benchmark-dev-120-001
-& $taskPython -m macro validate --cases data/benchmark-v2/dev
-```
-
-Generate a new benchmark package only when intentionally preparing new data;
-`macro generate` refuses to overwrite existing packages.
-
-The defaults create **120 development cases and 400 final test cases** under
-`data/benchmark-v2/`, using `configs/benchmark-v2.json` and
-[EVALUATION_POLICY.md](EVALUATION_POLICY.md). Read the generated benchmark README
-for coverage and pending reviews. Gold references and source mappings are in its
-`private/` folder; only the split's `cases.jsonl` belongs in judge input.
-The runner now supports this profile schema through explicit split selection; see
-[the DeepSeek experiment manual](DEEPSEEK_MIGRATION.md).
-Preview the 120 development cases without API calls:
-
-```powershell
-.\venv\Scripts\python.exe -m macro plan --config configs/deepseek-pilot.json --cases data/benchmark-v2 --split dev --limit 120
-```
-
-`--split test --limit 400` supports a no-cost preview. Paid final-test execution
-requires the approved `--final-readiness` record; it is rejected when the record is missing or artifacts changed.
-Use the development split for smoke runs and configuration choices.
-Each of the five case categories has 24 development and 80 final-test cases. Category
-balance is distinct from verdict-label balance. The earlier 600-test-case draft remains
-in `data/benchmark-v1/` for provenance; do not combine versions for evaluation.
-
-| Folder inside `src/macro/` | Responsibility |
-|---|---|
-| `evaluate_case_generation/` | Prepare the HUMMUS subset and construct case pairs |
-| `ai_agents/` | Shared rubric, role prompts, response schemas and AG2 calls |
-| `coordinator/` | One fixed aggregation implementation in `aggregation.py` |
-| `evaluation/` | Validate inputs, run experiments, resume and calculate metrics |
-| `reporting/` | Generate readable reports from saved outputs |
-| `shared/` | Deterministic reference policy, comparison and file helpers |
-
-[cli.py](src/macro/cli.py) defines the commands. See [ARCHITECTURE.md](ARCHITECTURE.md) for the execution flow and [DATA_PREPARATION.md](DATA_PREPARATION.md) for source-data preparation. `macro validate` verifies the existing benchmark; `macro audit` and `macro generate` prepare new data without API calls and refuse to overwrite existing packages.
-
-Historical pilot data and results remain for provenance and report viewing. The obsolete pilot evaluator has been removed; new evaluations use the current benchmark schema. Previously inspected pilot recipes remain excluded during new benchmark generation.
+The Git repository includes the prepared data and code. Raw model logs in `results/`, completed human annotations, local credentials and the original HUMMUS CSV are not included by default. See [Results](RESULTS.md) for what the submitted summary covers.

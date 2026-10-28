@@ -1,80 +1,34 @@
-# Prepare the 50-case human evaluation
+# Human evaluation
 
-The generator draws **10 unique base cases from each of five categories**:
-constraints, dominance, trade-offs, ties and both candidates violating constraints.
-This balances benchmark categories, not A/B/tie verdict labels. One randomly chosen
-candidate order is shown per case, so the packet contains 50 unique base cases.
+Two reviewers independently assess the same 50 cases without seeing model judgments or reference labels. Their task is to check the evidence, constraints, dominance and declared priorities. Personal food preferences must not become the reference answer.
 
-Humans judge the recipe pair independently, before seeing model answers or reference
-labels. This supports comparing human judgments with both the reference and each
-system afterward. It is not a direct rating of the models' written rationales.
+## Create a blinded packet
 
-## Generate the packet
-
-Open PowerShell and paste:
+From the repository folder, use a saved run that contains case and reference snapshots:
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\shane\Documents\NLP\group_project\MACRO'
-$taskPython = (Resolve-Path -LiteralPath '..\venv\Scripts\python.exe').Path
-
-& $taskPython scripts/generate_human_evaluation.py --run-dir results/deepseek-final-400-20261020-204822 --out human_evaluation/deepseek-final-400-20261020-204822/sample-50-seed-42 --per-class 10 --seed 42
+.\.venv\Scripts\python.exe scripts/generate_human_evaluation.py --run-dir results/deepseek-final-400 --out human_evaluation/sample-50-seed-42 --per-class 10 --seed 42
 ```
 
-The default seed is fixed for reproducibility. Keep it fixed for the study; do not
-try different seeds and select whichever gives favorable agreement. Sampling uses
-the saved run snapshots and does not depend on correctness, disagreement or failures.
-Failed or missing system judgments are retained in the private key, not excluded
-from eligibility. The source results are never edited, and existing output folders
-are rejected to protect collected annotations.
+Replace the run folder if your saved copy has a different name. Raw runs are not included in Git. This command makes no model calls and refuses an existing output folder.
 
-This needs only Python's standard library. It makes no API calls.
+The generator selects ten unique cases from each of the five categories and shows one randomized candidate order per case. Sampling does not select on model success or correctness. Keep the selected sample and seed fixed.
 
-## Give the evaluators only the packet folder
+| Output | Purpose |
+|---|---|
+| `packet/evaluate.html` | Offline form with case evidence and rubric |
+| `packet/cases.json` | Blinded case evidence |
+| `packet/responses.csv` | Blank response sheet |
+| `packet/README.md` | Reviewer instructions |
+| `private/answer_key.json` | References, source case IDs and saved model judgments |
+| `private/manifest.json` | Sampling and artifact identities |
 
-```text
-sample-50-seed-42/
-  packet/                 Share this folder only
-    evaluate.html         Offline evaluation form and rubric
-    cases.json            Blinded case evidence
-    responses.csv         Blank response sheet, if preferred
-    README.md             Evaluator instructions
-  private/                Keep away from evaluators until submission
-    answer_key.json       Gold labels, case mapping and both model results
-    manifest.json         Seed, sample balance and source/output fingerprints
-  README.md               Researcher instructions
-```
+Share only `packet/` with reviewers. Each reviewer uses a separate computer or browser profile and exports their responses before closing the form. Browser storage alone is not a reliable record. Collect independent responses before discussion.
 
-Open the form:
+## Report the human findings
 
-```powershell
-Start-Process -FilePath (Resolve-Path -LiteralPath 'human_evaluation/deepseek-final-400-20261020-204822/sample-50-seed-42/packet/evaluate.html').Path
-```
+Join responses to the private key by `sample_id`, preserving the displayed A/B order. Report reviewer agreement, agreement with references and models on the same 50 cases, missing responses, and the outcome of investigating disagreements. Record whether reference labels were confirmed or corrected and explain any corrections.
 
-Each evaluator enters an anonymous rater code, assesses feasibility and the final
-verdict, records confidence and a reason, and flags suspected evidence issues.
-Explanation-support and disclosure fields are optional diagnostics with definitions
-in the displayed rubric. The evaluator can download responses as CSV or JSON.
+`insufficient_information` is a valid outcome for unresolved trade-offs. `unable_to_assess` records a review problem or uncertainty and must be reported separately. Agreement does not itself establish correctness; objective properties remain checked against recipe evidence and the fixed policy.
 
-The form attempts to save answers in browser storage. Export before closing and
-regularly while working, since local-file browser storage is not guaranteed.
-For multiple evaluators, use the same unmodified packet on separate computers or
-browser profiles; a shared profile could reveal another evaluator's saved answers.
-Collect independent answers before discussion or adjudication.
-
-`unable_to_assess` is a human assessment failure/uncertainty, distinct from
-`insufficient_information`, which is a valid benchmark verdict for conflicting
-objectives without priorities. Retain missing responses and unable-to-assess cases
-in reporting rather than silently discarding them.
-
-## After annotation
-
-Join returned answers to `private/answer_key.json` by `sample_id`. Reference verdicts
-under `reference_displayed` and model results already use the exact A/B order shown
-to the evaluator. The original case ID, category and original reference are retained
-privately for auditing. `model_results` contains both primary and raw decisions when
-present in the source run.
-
-Report agreement with the reference, agreement with each system, per-category
-results, missing judgments, and inter-rater agreement when using multiple evaluators.
-A single evaluator cannot establish inter-rater reliability. Generating this packet
-does not establish that human review has occurred or replace the frozen final run.
+Generating the packet does not establish that annotation is complete. Completed responses and their analysis are separate study artifacts and are not included by default in this code repository.

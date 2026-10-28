@@ -12,3 +12,10 @@ results/
 human_evaluation/
 *.egg-info/
 docs/
+
+# Local working notes and detailed audits; submission guides live at the root.
+/PLAN.md
+/BENCHMARK_RUN.md
+/EVALUATION_READINESS.md
+/LITERATURE_REVIEW.md
+/reviews/
