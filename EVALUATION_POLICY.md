@@ -2,6 +2,10 @@
 
 Defined 18 October 2026 for the new benchmark. The allocation was revised on 19 October 2026 to **400 final-test base cases plus 120 separate development cases (520 total)**, with equal coverage of the five case categories (80 test and 24 dev each). This supersedes the earlier 600-test-case draft, which is retained as benchmark-v1. Counts change the benchmark configuration, not these decision rules. Executable references are in `src/macro/shared/benchmark_policy.py`. The active prompts, schemas and fixed coordinator implement this version; historical pilot files are archival. No real benchmark inference or completed human review is claimed here.
 
+> **Applicability to benchmark-v2:** Both `benchmark-v1` and `benchmark-v2` use the same `benchmark-policy-v1` decision rules described here, including hard constraints, objective scores, priority handling and verdict meanings. References to `v1` in these rules refer to the policy version, not a restriction to the `benchmark-v1` dataset. DeepSeek-specific provider and runner changes do not introduce a different reference policy.
+>
+> The dataset versions nevertheless contain different generated cases: v1 has 600 test cases and v2 has 400, with 120 development cases each. V2 also changes category allocation from 30% each for constraint, dominance and trade-off cases and 5% each for ties and both-violate cases to 20% for each of the five categories. Overall scores across dataset versions therefore should not be treated as a controlled model comparison; use the same dataset version and evaluation setup when comparing models.
+
 ## 1. Evaluation target and source of truth
 
 Judge two fixed recipe recommendations against a synthetic user's explicit requirements. Do not generate or improve recommendations. Both methods receive identical recipe/profile evidence. The ground-truth recipe verdict is computed from the structured profile and dataset recipe attributes, not title, explanation style, model opinion or a hidden preference.
